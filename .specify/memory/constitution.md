@@ -7,7 +7,9 @@ workspace multi-repo, em paralelo, e destaca as falhas com o motivo classificado
 
 ### I. Idioma pt-BR e convenções Rust
 
-- Código, comentários, mensagens da TUI e documentação MUST estar em português (pt-BR).
+- Código, comentários, mensagens da TUI e documentação MUST estar em português (pt-BR). Exceção:
+  títulos e rótulos estruturais dos templates do Spec Kit (ex.: "User Story", "Phase",
+  "Checkpoint", "Given/When/Then") permanecem em inglês para manter compatibilidade com o fluxo.
 - Identificadores MUST seguir as convenções Rust: `snake_case` para funções, variáveis e
   módulos; `CamelCase` para tipos. Prefixos húngaros (`ds`, `nr`, `fg`…) MUST NOT ser usados.
 - Enums de estado ou de erro MUST terminar em `Enum` (ex.: `TipoErroEnum`, `EstadoRepoEnum`).
@@ -93,4 +95,4 @@ Racional: o fluxo principal (pull/push) não pode depender de ferramentas de ter
 - Revisões de plano (`speckit.plan`, `speckit.analyze`) MUST verificar conformidade com cada
   princípio; violações MUST ser justificadas na seção de complexidade do plano.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-09
+**Version**: 1.0.1 | **Ratified**: 2026-10-09 | **Last Amended**: 2026-10-09

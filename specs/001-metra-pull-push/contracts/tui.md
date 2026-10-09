@@ -17,7 +17,7 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 [detalhe, quando aberto: branch, dica e log rolável]
 ────────────────────────────────────────────────────────────────────────
 <barra de status>
-↑↓/jk navegar · Enter detalhe · r repetir · n --no-rebase · R repetir falhas · p pane · q sair
+↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · q/Esc sair
 ```
 
 - Ordem dos grupos: Falhou → Recebido/Enviado → Executando → Pendente → `✓` → `○` → `⚠`; ordem
@@ -39,6 +39,6 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 | `q` | Inicia saída | Qualquer momento |
 | `Esc` | Fecha detalhe; sem detalhe, igual a `q` | — |
 
-Ações `r`/`n`/`p` em linha agregada, repo não Clonado ou repo Pendente/Executando: ignoradas com
-mensagem na barra de status. Após `q`: `r`, `n`, `R`, `p` ignorados; status
+`r`/`n` em linha agregada, repo não Clonado ou repo Pendente/Executando, e `p` em linha agregada ou
+repo não Clonado: ignorados com mensagem na barra de status. Após `q`: `r`, `n`, `R`, `p` ignorados; status
 "aguardando N tarefas…" até o pool encerrar.

@@ -9,7 +9,7 @@
 
 ```bash
 cd ~/Projetos/metra
-cargo test                     # classifica (unit), tests/fonte.rs, tests/executor.rs
+cargo test                     # unit (classifica, app, ui, acoes) + tests/{fonte,executor,pool}.rs
 cargo clippy -- -D warnings
 ```
 
@@ -19,9 +19,17 @@ HEAD destacado, push enviado/rejeitado e pasta sem `.git` dentro de repo pai.
 
 ## 2. Fixture manual
 
-Script descartável cria `/tmp/metra-fixture/ws` (repo git pai) com repos `ok`, `recebe` (2
-commits novos no upstream), `diverge`, `conflita`, `sujo` na branch `build/teste` com remote
-`upstream`, a pasta `so-build/build/` sem `.git` e `.meta` listando também `ausente`.
+O script descartável `/tmp/metra-fixture.sh` (fora do repositório; tarefa T030) cria
+`/tmp/metra-fixture/ws` (repo git pai com um commit) com repos `ok`, `recebe` (2 commits novos no
+upstream), `diverge` (commits em arquivos distintos nos dois lados), `conflita` (mesma linha de
+`a.txt` alterada nos dois lados) e `sujo` (upstream altera `a.txt`; clone com `a.txt` modificado
+sem commit), todos clonados de `/tmp/metra-fixture/upstream/<r>.git`, com o remote renomeado para
+`upstream` e na branch `build/teste`; a pasta `so-build/build/` sem `.git`; e `.meta` com
+`projects` = `ok, recebe, diverge, conflita, sujo, so-build, ausente`.
+
+```bash
+bash /tmp/metra-fixture.sh
+```
 
 ```bash
 cargo install --path ~/Projetos/metra

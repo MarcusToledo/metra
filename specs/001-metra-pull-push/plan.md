@@ -23,8 +23,9 @@ dev: `tempfile`. Todas adicionadas com `cargo add`.
 
 **Storage**: N/A (lê `.meta` JSON; nada persistido)
 
-**Testing**: `cargo test` — unitários em `src/classifica.rs`; integração em `tests/executor.rs` e
-`tests/fonte.rs` com repositórios git reais em `tempfile::TempDir`
+**Testing**: `cargo test` — unitários em `src/classifica.rs` e `src/app.rs`; integração em
+`tests/executor.rs`, `tests/fonte.rs` e `tests/pool.rs` com repositórios git reais em
+`tempfile::TempDir`
 
 **Target Platform**: Linux (terminal com suporte a tela alternativa); git ≥ 2.34
 
@@ -47,7 +48,7 @@ terminal restaurado em qualquer saída
 | II. Separação estrita | `fonte/` (descoberta), `executor.rs` (git), `classifica.rs` (pura), `pool.rs` (threads), `app.rs` (estado sem terminal), `ui.rs` (render), `acoes.rs` (herdr); UI só envia `Tarefa` e lê `Evento` | ✅ |
 | III. Testes com git real | `classifica` com saídas reais capturadas do git 2.34.1 (ver research.md); `tests/executor.rs` e `tests/fonte.rs` com repos temporários reais, sem mocks | ✅ |
 | IV. Git só na raiz própria | `situacao` calculada por `caminho.join(".git").exists()`; `executar` recusa repo não Clonado; teste prova que repo pai não muda | ✅ |
-| V. Não-interativo | helper `git()` com `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`, `Stdio::null()` | ✅ |
+| V. Não-interativo | helper `git()` com `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`, `Stdio::null()` e ssh em `BatchMode=yes` quando o usuário não configurou ssh próprio (FR-011) | ✅ |
 | VI. Dependências mínimas | Exatamente a lista da constituição; threads `std` | ✅ |
 | VII. Integrações degradam | `abrir_pane_herdr` devolve `Result<(), String>` exibido na barra de status | ✅ |
 
@@ -76,8 +77,9 @@ Cargo.toml
 src/
 ├── main.rs          # clap, resolução da fonte, loop da TUI, linha-resumo, código de saída
 ├── lib.rs           # declara e reexporta os módulos (permite testes de integração)
+├── repo.rs          # Repo, SituacaoRepoEnum, situacao() — tipo neutro usado por fonte e executor
 ├── fonte/
-│   ├── mod.rs       # trait FonteRepos, Repo, SituacaoRepoEnum, FonteEnum, resolver_fonte
+│   ├── mod.rs       # trait FonteRepos, FonteEnum, resolver_fonte, descobrir
 │   ├── meta.rs      # FonteMeta (.meta)
 │   └── varredura.rs # FonteVarredura (subpastas)
 ├── classifica.rs    # TipoErroEnum + classificar() puro + texto()/dica(); testes unitários
@@ -88,7 +90,8 @@ src/
 └── ui.rs            # desenhar(frame, &App)
 tests/
 ├── executor.rs      # cenários git reais
-└── fonte.rs         # descoberta meta/varredura/auto
+├── fonte.rs         # descoberta meta/varredura/auto
+└── pool.rs          # paralelismo, eventos e cancelamento
 ```
 
 **Structure Decision**: projeto único; `lib.rs` expõe os módulos para que `tests/` exercite
@@ -96,13 +99,15 @@ tests/
 
 ### Design dos módulos
 
+- **`repo.rs`** (módulo neutro, evita acoplar executor a fonte): `pub struct Repo { pub nome:
+  String, pub caminho: PathBuf, pub situacao: SituacaoRepoEnum }`; `pub enum SituacaoRepoEnum {
+  Clonado, NaoClonado, SemRepositorio }`; `pub fn situacao(caminho: &Path) -> SituacaoRepoEnum`.
 - **`fonte/mod.rs`**: `pub trait FonteRepos { fn listar(&self) -> anyhow::Result<Vec<Repo>>; }`;
-  `pub struct Repo { pub nome: String, pub caminho: PathBuf, pub situacao: SituacaoRepoEnum }`;
-  `pub enum SituacaoRepoEnum { Clonado, NaoClonado, SemRepositorio }`;
   `pub enum FonteEnum { Auto, Meta, Varredura }` (`clap::ValueEnum`);
   `pub fn resolver_fonte(modo: FonteEnum, cwd: &Path) -> anyhow::Result<(PathBuf, Box<dyn FonteRepos>)>`;
-  `pub fn situacao(caminho: &Path) -> SituacaoRepoEnum`. Lista vazia é erro tratado em
-  `resolver_fonte`/`main` com "nenhum repositório encontrado em <raiz>".
+  `pub fn descobrir(modo: FonteEnum, cwd: &Path) -> anyhow::Result<(PathBuf, Vec<Repo>)>` —
+  resolve, lista e devolve erro "nenhum repositório encontrado em <raiz>" se a lista for vazia
+  (regra testável fora do `main`).
 - **`fonte/meta.rs`**: desserializa `.meta` com `serde` em `struct ArquivoMeta { projects:
   ChavesOrdenadas }`, onde `ChavesOrdenadas(Vec<String>)` tem `Deserialize` manual via
   `visit_map` para preservar a ordem do arquivo (ver research.md R3); erro de parse ou `projects`
@@ -119,6 +124,10 @@ tests/
   Falhou(TipoErroEnum) }`; `pub struct Resultado { pub estado: EstadoRepoEnum, pub branch:
   Option<String>, pub log: String }`; `pub fn executar(tarefa: &Tarefa) -> Resultado`;
   helper privado `git(caminho, args) -> (bool, String)` com `Command::new("git").arg("-C")`.
+  ssh não-interativo: se `GIT_SSH_COMMAND` e `GIT_SSH` não estão no ambiente e
+  `git -C <repo> config --get core.sshCommand` não devolve valor, o helper define
+  `GIT_SSH_COMMAND=ssh -o BatchMode=yes` nos comandos daquela tentativa.
+  Falha em `rev-parse` (branch/commit) → `Falhou(Desconhecido(<última linha>))`.
   Repo não Clonado → `Falhou(Desconhecido("repositório não clonado"))` sem processo (defesa em
   profundidade; o app nunca envia).
 - **`pool.rs`**: `pub enum Evento { Iniciou(usize), Terminou(usize, Resultado), PoolEncerrado }`;
@@ -131,12 +140,15 @@ tests/
   detalhe_aberto, rolagem, status, saindo, encerrado }`; `linhas() -> Vec<LinhaEnum>` (grupos da
   FR-016); `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` onde `AcaoEnum { Enviar(Tarefa), AbrirPane(PathBuf),
   Sair }`; `aplicar(Evento)`; `resumo() -> String`; `codigo_saida() -> i32`. Sem I/O.
-- **`acoes.rs`**: `pub fn abrir_pane_herdr(caminho: &Path) -> Result<(), String>`.
+- **`acoes.rs`**: `pub fn abrir_pane_herdr(caminho: &Path) -> Result<(), String>`, que lê
+  `HERDR_ENV` e delega a `fn abrir_pane_com(herdr_env: Option<&str>, caminho: &Path) ->
+  Result<(), String>` (testável sem alterar o ambiente do processo).
 - **`ui.rs`**: `pub fn desenhar(frame: &mut Frame, app: &App)` — cabeçalho, lista (`List` +
   `ListState`), detalhe (`Paragraph::scroll`), barra de status e rodapé.
-- **`main.rs`**: clap → `resolver_fonte` (erro → stderr, exit 2) → `ratatui::init()` → loop
-  (drena `try_recv`, `event::poll(100ms)`, `desenhar`) → `ratatui::restore()` → imprime
-  `app.resumo()` → `std::process::exit(app.codigo_saida())`.
+- **`main.rs`**: clap → `descobrir` (erro → stderr, exit 2) → `ratatui::init()` →
+  `rodar(&mut terminal, …) -> anyhow::Result<App>` (drena `try_recv`, `event::poll(100ms)`,
+  `desenhar`) → `ratatui::restore()` incondicional, antes de tratar o `Result` (FR-026; o panic
+  hook do `init` cobre panics) → imprime `app.resumo()` → `std::process::exit(app.codigo_saida())`.
 
 ## Complexity Tracking
 

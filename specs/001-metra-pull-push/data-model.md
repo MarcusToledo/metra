@@ -1,6 +1,6 @@
 # Data Model: metra pull/push
 
-## Repo (`fonte::Repo`)
+## Repo (`repo::Repo`)
 
 | Campo | Tipo | Regra |
 |---|---|---|
@@ -65,7 +65,7 @@ Reexecução só é aceita para estados terminais e antes de `q`.
 | Variante | `texto()` (lista) | `dica()` (detalhe) |
 |---|---|---|
 | `MergePendente` | merge pendente | resolva manualmente: [p] abre pane no repo |
-| `Conflito(Vec<String>)` | conflito em a.txt, b.txt | resolva manualmente: [p] abre pane no repo |
+| `Conflito(Vec<String>)` | conflito em a.txt, b.txt, c.txt (+2) — até 3 arquivos | resolva manualmente: [p] abre pane no repo |
 | `Divergente` | branches divergentes | use [n] para merge com --no-rebase |
 | `AlteracoesLocais` | alterações locais seriam sobrescritas | resolva manualmente: [p] abre pane no repo |
 | `ArquivosNaoRastreados` | arquivos não rastreados seriam sobrescritos | resolva manualmente: [p] abre pane no repo |

@@ -185,11 +185,15 @@ repositórios varrendo as subpastas imediatas.
 - **FR-009**: Pull MUST: (1) obter a branch atual; se for `HEAD`, falhar com HeadDestacado sem
   executar o pull; (2) registrar o commit atual; (3) executar `git pull [--no-rebase] <remote>
   <branch>`; (4) em sucesso, comparar o commit: igual → SemMudanca; diferente → Recebido com a
-  quantidade de commits entre o antes e o depois.
+  quantidade de commits entre o antes e o depois. Se a leitura da branch ou do commit falhar
+  (ex.: repositório sem commits), o resultado é Falhou(Desconhecido) com a última linha não
+  vazia da saída.
 - **FR-010**: Push MUST obter a branch como no pull e executar `git push <remote> <branch>`; em
   sucesso, saída contendo "Everything up-to-date" → SemMudanca, senão Enviado.
 - **FR-011**: Todo processo git MUST rodar sem possibilidade de solicitar entrada (sem prompt de
-  terminal, entrada nula) e com mensagens em inglês padrão (locale C).
+  terminal, entrada nula) e com mensagens em inglês padrão (locale C). Isso inclui o ssh: quando
+  o usuário não definiu `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o ssh roda em modo
+  batch (`ssh -o BatchMode=yes`); se definiu, a configuração do usuário é respeitada.
 - **FR-012**: O log guardado de cada repositório MUST conter stdout e stderr de todos os comandos
   da tentativa mais recente.
 
@@ -208,12 +212,27 @@ repositórios varrendo as subpastas imediatas.
   | "couldn't find remote ref" | BranchRemotaInexistente |
   | "does not appear to be a git repository" | RemoteInexistente |
   | "[rejected]" ou "Updates were rejected" | PushRejeitado |
-  | "Permission denied", "Could not read from remote repository", "Could not resolve host", "Connection timed out", "Connection refused" ou "terminal prompts disabled" | RedeOuAutenticacao |
+  | "Permission denied", "Could not read from remote repository", "Could not resolve host", "Connection timed out", "Connection refused", "Host key verification failed" ou "terminal prompts disabled" | RedeOuAutenticacao |
   | nenhuma das anteriores | Desconhecido (última linha não vazia) |
 
 - **FR-014**: Cada tipo MUST ter um texto curto exibido na lista e uma dica exibida no detalhe:
-  Divergente → "use [n] para merge com --no-rebase"; Conflito, MergePendente, AlteracoesLocais e
-  ArquivosNaoRastreados → "resolva manualmente: [p] abre pane no repo"; demais → "veja o log".
+
+  | Tipo | Texto curto | Dica |
+  |---|---|---|
+  | MergePendente | merge pendente | resolva manualmente: [p] abre pane no repo |
+  | Conflito | conflito em <arq1>, <arq2>, <arq3> (+N) | resolva manualmente: [p] abre pane no repo |
+  | Divergente | branches divergentes | use [n] para merge com --no-rebase |
+  | AlteracoesLocais | alterações locais seriam sobrescritas | resolva manualmente: [p] abre pane no repo |
+  | ArquivosNaoRastreados | arquivos não rastreados seriam sobrescritos | resolva manualmente: [p] abre pane no repo |
+  | BranchRemotaInexistente | branch não existe no remote | veja o log |
+  | RemoteInexistente | remote inexistente | veja o log |
+  | PushRejeitado | push rejeitado | veja o log |
+  | RedeOuAutenticacao | falha de rede ou autenticação | veja o log |
+  | HeadDestacado | HEAD destacado | veja o log |
+  | Desconhecido | a própria última linha não vazia | veja o log |
+
+  No Conflito, até 3 arquivos aparecem no texto curto; os demais viram `(+N)`; o detalhe mostra
+  a lista completa no log.
 
 **TUI**
 
@@ -228,12 +247,14 @@ repositórios varrendo as subpastas imediatas.
 - **FR-017**: Enter MUST alternar o painel de detalhe; para um repositório, o painel mostra a
   branch, o log completo com rolagem (PgUp/PgDn) e a dica do tipo de erro; para uma linha
   agregada, mostra os nomes dos repositórios do grupo.
-- **FR-018**: O rodapé MUST listar os atalhos: ↑/↓ e k/j navegam; Enter detalhe; `r` reexecuta o
-  selecionado; `n` reexecuta com `--no-rebase`; `R` reexecuta todas as falhas; `p` abre pane do
-  herdr; `q` sai; Esc fecha o detalhe se aberto, senão sai.
-- **FR-019**: Reexecução MUST levar o repositório de volta a Pendente e reenviá-lo para execução.
-  `n` no push MUST apenas mostrar "indisponível no push" na barra de status.
-- **FR-020**: Ações sobre repositórios não Clonado ou linhas agregadas MUST ser ignoradas com
+- **FR-018**: O rodapé MUST listar os atalhos: ↑/↓ e k/j navegam; Enter detalhe; PgUp/PgDn rolam
+  o log; `r` reexecuta o selecionado; `n` reexecuta com `--no-rebase`; `R` reexecuta todas as
+  falhas; `p` abre pane do herdr; `q` sai; Esc fecha o detalhe se aberto, senão sai.
+- **FR-019**: Reexecução MUST levar o repositório de volta a Pendente, descartar o log anterior e
+  reenviá-lo para execução. `n` no push MUST apenas mostrar "indisponível no push" na barra de
+  status.
+- **FR-020**: `r` e `n` sobre linhas agregadas, repositórios não Clonado ou repositórios Pendente/
+  Executando, e `p` sobre linhas agregadas ou repositórios não Clonado, MUST ser ignorados com
   mensagem na barra de status.
 
 **Herdr**
@@ -247,9 +268,10 @@ repositórios varrendo as subpastas imediatas.
 **Saída**
 
 - **FR-023**: `q` MUST funcionar a qualquer momento: nenhuma nova tarefa é iniciada, as em execução
-  são aguardadas (status "aguardando N tarefas…"), o terminal é restaurado e o stdout recebe a
-  linha-resumo `metra pull: X sem mudança, Y recebidos, Z falhas[ (repo1, repo2…)], W não
-  clonados, V sem repositório` (no push, `enviados` no lugar de `recebidos`).
+  são aguardadas (status "aguardando N tarefas…", N = tarefas em execução), o terminal é
+  restaurado e o stdout recebe a linha-resumo `metra pull: X sem mudança, Y recebidos, Z
+  falhas[ (repo1, repo2…)], W não clonados, V sem repositório` (no push, `enviados` no lugar de
+  `recebidos`). Após `q`, o spinner do cabeçalho só gira enquanto houver tarefa em execução.
 - **FR-024**: Tarefas ainda pendentes na saída MUST contar como não executadas e não entrar em
   nenhum grupo da linha-resumo.
 - **FR-025**: O código de saída MUST ser 0 sem falhas, 1 com falhas e 2 para erro de configuração
