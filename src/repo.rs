@@ -1,6 +1,6 @@
 //! Repositório do workspace e sua situação no disco (módulo neutro entre fonte e executor).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Situação de um caminho listado pela fonte, calculada antes da execução.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,4 +21,15 @@ pub struct Repo {
     /// Caminho absoluto: `raiz.join(nome)`.
     pub caminho: PathBuf,
     pub situacao: SituacaoRepoEnum,
+}
+
+/// Classifica o caminho sem consultar repositórios ancestrais.
+pub fn situacao(caminho: &Path) -> SituacaoRepoEnum {
+    if caminho.join(".git").exists() {
+        SituacaoRepoEnum::Clonado
+    } else if !caminho.exists() {
+        SituacaoRepoEnum::NaoClonado
+    } else {
+        SituacaoRepoEnum::SemRepositorio
+    }
 }
