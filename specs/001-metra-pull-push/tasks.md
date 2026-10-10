@@ -48,25 +48,25 @@ testes passarem.
 
 ### Classificação
 
-- [ ] T004 [P] Testes unitários em `#[cfg(test)] mod tests` de src/classifica.rs para cada regra da FR-013 com os textos reais de research.md R2: divergente; conflito com `["a.txt"]` extraído; merge pendente ("Pulling is not possible…" e "You have not concluded your merge"); alterações locais; não rastreados; branch remota inexistente; remote inexistente (texto real contém também "Could not read from remote repository" → deve dar RemoteInexistente); push rejeitado; rede "Could not resolve host"; "Host key verification failed"; "terminal prompts disabled"; Desconhecido com a última linha não vazia; `texto()` de Conflito com 5 arquivos = "conflito em a, b, c (+2)"; `dica()` dos três grupos (FR-014)
-- [ ] T005 Implementar `pub fn classificar(texto: &str) -> TipoErroEnum`, `texto(&self) -> String` e `dica(&self) -> &'static str` em src/classifica.rs com a tabela da FR-014
+- [X] T004 [P] Testes unitários em `#[cfg(test)] mod tests` de src/classifica.rs para cada regra da FR-013 com os textos reais de research.md R2: divergente; conflito com `["a.txt"]` extraído; merge pendente ("Pulling is not possible…" e "You have not concluded your merge"); alterações locais; não rastreados; branch remota inexistente; remote inexistente (texto real contém também "Could not read from remote repository" → deve dar RemoteInexistente); push rejeitado; rede "Could not resolve host"; "Host key verification failed"; "terminal prompts disabled"; Desconhecido com a última linha não vazia; `texto()` de Conflito com 5 arquivos = "conflito em a, b, c (+2)"; `dica()` dos três grupos (FR-014)
+- [X] T005 Implementar `pub fn classificar(texto: &str) -> TipoErroEnum`, `texto(&self) -> String` e `dica(&self) -> &'static str` em src/classifica.rs com a tabela da FR-014
 
 ### Descoberta (meta, varredura, auto)
 
-- [ ] T006 [P] Testes em tests/fonte.rs: `situacao` para `.git` diretório, `.git` arquivo, caminho ausente e pasta sem `.git`; `.meta` com chaves fora de ordem alfabética (`zeta`, `alfa`) preserva a ordem do arquivo; chave `grupo/repo` vira `raiz/grupo/repo`; JSON inválido → erro; `.meta` sem `projects` → erro; `descobrir(Meta)` sem `.meta` → erro contendo "nenhum .meta encontrado a partir de <cwd>"; `descobrir(Auto)` num subdiretório com `.meta` no ancestral → raiz = ancestral; varredura lista só subpastas não ocultas com `.git`, por nome, ignorando `.oculta`, pasta sem `.git` e a raiz; `descobrir(Auto)` sem `.meta` → varredura com raiz = cwd; `descobrir(Varredura)` ignora `.meta` existente; `.meta` com `projects` vazio e diretório sem repos → erro "nenhum repositório encontrado em <raiz>"
-- [ ] T007 Implementar `situacao` em src/repo.rs e `resolver_fonte` + `descobrir` em src/fonte/mod.rs (procura `.meta` no cwd e ancestrais)
-- [ ] T008 Implementar `FonteMeta` em src/fonte/meta.rs com `Deserialize` manual (`visit_map`) preservando a ordem das chaves de `projects` (research.md R3); erros com a mensagem do parser e o caminho do arquivo
-- [ ] T009 Implementar `FonteVarredura` em src/fonte/varredura.rs
+- [X] T006 [P] Testes em tests/fonte.rs: `situacao` para `.git` diretório, `.git` arquivo, caminho ausente e pasta sem `.git`; `.meta` com chaves fora de ordem alfabética (`zeta`, `alfa`) preserva a ordem do arquivo; chave `grupo/repo` vira `raiz/grupo/repo`; JSON inválido → erro; `.meta` sem `projects` → erro; `descobrir(Meta)` sem `.meta` → erro contendo "nenhum .meta encontrado a partir de <cwd>"; `descobrir(Auto)` num subdiretório com `.meta` no ancestral → raiz = ancestral; varredura lista só subpastas não ocultas com `.git`, por nome, ignorando `.oculta`, pasta sem `.git` e a raiz; `descobrir(Auto)` sem `.meta` → varredura com raiz = cwd; `descobrir(Varredura)` ignora `.meta` existente; `.meta` com `projects` vazio e diretório sem repos → erro "nenhum repositório encontrado em <raiz>"
+- [X] T007 Implementar `situacao` em src/repo.rs e `resolver_fonte` + `descobrir` em src/fonte/mod.rs (procura `.meta` no cwd e ancestrais)
+- [X] T008 Implementar `FonteMeta` em src/fonte/meta.rs com `Deserialize` manual (`visit_map`) preservando a ordem das chaves de `projects` (research.md R3); erros com a mensagem do parser e o caminho do arquivo
+- [X] T009 Implementar `FonteVarredura` em src/fonte/varredura.rs
 
 ### Executor de pull
 
-- [ ] T010 [P] Testes em tests/executor.rs. Helper que (a) falha com mensagem clara se `git config --get pull.rebase` ou `pull.ff` estiverem definidos fora do repo de teste (research.md R2), (b) cria em `tempfile::TempDir` um bare "upstream", um clone de trabalho com remote `upstream`, `user.name`/`user.email` locais, e um clone auxiliar para avançar o upstream. Cenários de pull: sem mudança → `SemMudanca`; upstream +2 commits → `Recebido(2)`; divergente → `Falhou(Divergente)`; divergente com `sem_rebase` → `Recebido(2)`; conflito → `Falhou(Conflito(["a.txt"]))`; alterações locais → `Falhou(AlteracoesLocais)`; branch remota inexistente → `Falhou(BranchRemotaInexistente)`; remote `nao-existe` → `Falhou(RemoteInexistente)`; HEAD destacado → `Falhou(HeadDestacado)` com HEAD inalterado; `Resultado.branch` = branch atual; `Resultado.log` contém a saída do `git pull`; `Repo` `SemRepositorio` (pasta sem `.git` dentro de um repo pai) → `Falhou`, sem alterar `rev-parse HEAD` do pai
-- [ ] T011 Implementar em src/executor.rs o helper privado `git(caminho, args) -> (bool, String)` (`Command::new("git").arg("-C")`, envs `GIT_TERMINAL_PROMPT=0` e `LC_ALL=C`, `GIT_SSH_COMMAND=ssh -o BatchMode=yes` quando `GIT_SSH_COMMAND`/`GIT_SSH` ausentes e `core.sshCommand` vazio, `stdin(Stdio::null())`, log com `$ git <args>` seguido de stdout+stderr) e `pub fn executar(tarefa: &Tarefa) -> Resultado` para Pull (FR-009; falha de `rev-parse` → `Falhou(Desconhecido(<última linha>))`; não `Clonado` → `Falhou(Desconhecido("repositório não clonado"))` sem processo)
+- [X] T010 [P] Testes em tests/executor.rs. Helper que (a) falha com mensagem clara se `git config --get pull.rebase` ou `pull.ff` estiverem definidos fora do repo de teste (research.md R2), (b) cria em `tempfile::TempDir` um bare "upstream", um clone de trabalho com remote `upstream`, `user.name`/`user.email` locais, e um clone auxiliar para avançar o upstream. Cenários de pull: sem mudança → `SemMudanca`; upstream +2 commits → `Recebido(2)`; divergente → `Falhou(Divergente)`; divergente com `sem_rebase` → `Recebido(2)`; conflito → `Falhou(Conflito(["a.txt"]))`; alterações locais → `Falhou(AlteracoesLocais)`; branch remota inexistente → `Falhou(BranchRemotaInexistente)`; remote `nao-existe` → `Falhou(RemoteInexistente)`; HEAD destacado → `Falhou(HeadDestacado)` com HEAD inalterado; `Resultado.branch` = branch atual; `Resultado.log` contém a saída do `git pull`; `Repo` `SemRepositorio` (pasta sem `.git` dentro de um repo pai) → `Falhou`, sem alterar `rev-parse HEAD` do pai
+- [X] T011 Implementar em src/executor.rs o helper privado `git(caminho, args) -> (bool, String)` (`Command::new("git").arg("-C")`, envs `GIT_TERMINAL_PROMPT=0` e `LC_ALL=C`, `GIT_SSH_COMMAND=ssh -o BatchMode=yes` quando `GIT_SSH_COMMAND`/`GIT_SSH` ausentes e `core.sshCommand` vazio, `stdin(Stdio::null())`, log com `$ git <args>` seguido de stdout+stderr) e `pub fn executar(tarefa: &Tarefa) -> Resultado` para Pull (FR-009; falha de `rev-parse` → `Falhou(Desconhecido(<última linha>))`; não `Clonado` → `Falhou(Desconhecido("repositório não clonado"))` sem processo)
 
 ### Pool
 
-- [ ] T012 Testes em tests/pool.rs: 4 tarefas reais com `n = 2` → 4 `Iniciou` + 4 `Terminou`, máximo de `Iniciou − Terminou` simultâneos ≤ 2, e `PoolEncerrado` após `encerrar`; com `n = 1` e 3 tarefas, chamar `encerrar` ao receber o primeiro `Iniciou` → menos de 3 `Terminou` antes de `PoolEncerrado` (fila descartada sem evento)
-- [ ] T013 Implementar em src/pool.rs `Pool::iniciar(n, eventos: mpsc::Sender<Evento>) -> Pool`, `enviar(&self, Tarefa)` e `encerrar(&mut self)` conforme plan.md (workers em `Arc<Mutex<Receiver<Tarefa>>>`, `Arc<AtomicBool>` `cancelado`, thread vigia emitindo `PoolEncerrado`)
+- [X] T012 Testes em tests/pool.rs: 4 tarefas reais com `n = 2` → 4 `Iniciou` + 4 `Terminou`, máximo de `Iniciou − Terminou` simultâneos ≤ 2, e `PoolEncerrado` após `encerrar`; com `n = 1` e 3 tarefas, chamar `encerrar` ao receber o primeiro `Iniciou` → menos de 3 `Terminou` antes de `PoolEncerrado` (fila descartada sem evento)
+- [X] T013 Implementar em src/pool.rs `Pool::iniciar(n, eventos: mpsc::Sender<Evento>) -> Pool`, `enviar(&self, Tarefa)` e `encerrar(&mut self)` conforme plan.md (workers em `Arc<Mutex<Receiver<Tarefa>>>`, `Arc<AtomicBool>` `cancelado`, thread vigia emitindo `PoolEncerrado`)
 
 **Checkpoint**: gate verde; commit `feat: classificacao, descoberta, executor de pull e pool`.
 
@@ -80,11 +80,11 @@ exit code.
 **Independent Test**: quickstart.md seção 2 — TUI mostra os grupos esperados; `q` imprime a
 linha-resumo e devolve 1; repo pai inalterado.
 
-- [ ] T014 [US1] Testes em `#[cfg(test)] mod tests` de src/app.rs: `tarefas_iniciais()` só com Clonado, na ordem da fonte; `linhas()` na ordem de grupos da FR-016 e da fonte dentro do grupo, agregadas omitidas quando vazias; `aplicar(Iniciou/Terminou)` atualiza estado, branch e log; navegação ↑/↓/k/j limitada; Enter alterna detalhe; PgUp/PgDn alteram `rolagem` só com detalhe aberto; Esc fecha detalhe, senão `Sair`; `q` → `Sair`, `saindo = true`, status "aguardando N tarefas…" com N = Executando; `PoolEncerrado` → `encerrado`; `resumo()` de pull com e sem falhas no formato de contracts/cli.md, pendentes fora de qualquer grupo; `codigo_saida()` 0/1
-- [ ] T015 [US1] Implementar em src/app.rs: `App::new(operacao, remote, raiz, repos)`, `tarefas_iniciais`, `linhas`, `aplicar`, `executando() -> usize`, `concluidos() -> (usize, usize)`, `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` (navegação, Enter, PgUp/PgDn, q, Esc), `resumo`, `codigo_saida`
-- [ ] T016 [P] [US1] Testes em `#[cfg(test)] mod tests` de src/ui.rs com `ratatui::backend::TestBackend` 80×24: 45 repos com 10 falhas → as 10 linhas `✗` visíveis; cabeçalho `metra pull · remote upstream · <raiz>` com `concluídos/total`; rodapé de contracts/tui.md; detalhe aberto mostra branch, dica e log
-- [ ] T017 [US1] Implementar `pub fn desenhar(frame: &mut Frame, app: &App)` em src/ui.rs conforme contracts/tui.md (spinner, símbolos, painel de detalhe com `Paragraph::scroll`, barra de status, rodapé)
-- [ ] T018 [US1] Implementar src/main.rs: clap (`pull`/`push`, `-j/--jobs` ≥ 1 padrão 8, `--remote`, `--fonte`), `descobrir` (erro → stderr, exit 2), `Pool::iniciar` + `tarefas_iniciais`, `ratatui::init()`, `rodar(...) -> anyhow::Result<()>` (drena `try_recv`, `event::poll(100ms)` filtrando `KeyEventKind::Press`, `desenhar`; `Sair` → `pool.encerrar()` e segue até `PoolEncerrado`), `ratatui::restore()` incondicional antes de tratar o erro (FR-026), imprime `resumo()`, `process::exit(codigo_saida())`
+- [X] T014 [US1] Testes em `#[cfg(test)] mod tests` de src/app.rs: `tarefas_iniciais()` só com Clonado, na ordem da fonte; `linhas()` na ordem de grupos da FR-016 e da fonte dentro do grupo, agregadas omitidas quando vazias; `aplicar(Iniciou/Terminou)` atualiza estado, branch e log; navegação ↑/↓/k/j limitada; Enter alterna detalhe; PgUp/PgDn alteram `rolagem` só com detalhe aberto; Esc fecha detalhe, senão `Sair`; `q` → `Sair`, `saindo = true`, status "aguardando N tarefas…" com N = Executando; `PoolEncerrado` → `encerrado`; `resumo()` de pull com e sem falhas no formato de contracts/cli.md, pendentes fora de qualquer grupo; `codigo_saida()` 0/1
+- [X] T015 [US1] Implementar em src/app.rs: `App::new(operacao, remote, raiz, repos)`, `tarefas_iniciais`, `linhas`, `aplicar`, `executando() -> usize`, `concluidos() -> (usize, usize)`, `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` (navegação, Enter, PgUp/PgDn, q, Esc), `resumo`, `codigo_saida`
+- [X] T016 [P] [US1] Testes em `#[cfg(test)] mod tests` de src/ui.rs com `ratatui::backend::TestBackend` 80×24: 45 repos com 10 falhas → as 10 linhas `✗` visíveis; cabeçalho `metra pull · remote upstream · <raiz>` com `concluídos/total`; rodapé de contracts/tui.md; detalhe aberto mostra branch, dica e log
+- [X] T017 [US1] Implementar `pub fn desenhar(frame: &mut Frame, app: &App)` em src/ui.rs conforme contracts/tui.md (spinner, símbolos, painel de detalhe com `Paragraph::scroll`, barra de status, rodapé)
+- [X] T018 [US1] Implementar src/main.rs: clap (`pull`/`push`, `-j/--jobs` ≥ 1 padrão 8, `--remote`, `--fonte`), `descobrir` (erro → stderr, exit 2), `Pool::iniciar` + `tarefas_iniciais`, `ratatui::init()`, `rodar(...) -> anyhow::Result<()>` (drena `try_recv`, `event::poll(100ms)` filtrando `KeyEventKind::Press`, `desenhar`; `Sair` → `pool.encerrar()` e segue até `PoolEncerrado`), `ratatui::restore()` incondicional antes de tratar o erro (FR-026), imprime `resumo()`, `process::exit(codigo_saida())`
 
 **Checkpoint**: gate verde; commit `feat: tui de pull com grupos e linha-resumo`.
 
@@ -97,11 +97,11 @@ linha-resumo e devolve 1; repo pai inalterado.
 **Independent Test**: na fixture, `n` em `diverge` → `↓ diverge  2 commits`; `p` em `conflita`
 dentro do herdr abre pane no repo.
 
-- [ ] T019 [US2] Testes em src/app.rs: `r` em Falhou → `Pendente`, log descartado e `Enviar` com `sem_rebase = false`; `n` no pull → `sem_rebase = true`; `n` no push → status "indisponível no push" sem ação; `R` reenvia todas as falhas; `r`/`n` em agregada, não Clonado, Pendente ou Executando → status e nenhuma ação; `p` em Clonado → `AbrirPane(caminho)`; `p` em agregada/não Clonado → status; após `q`, `r`/`n`/`R`/`p` ignorados
-- [ ] T020 [US2] Implementar `r`, `n`, `R`, `p` em `App::tratar_tecla` em src/app.rs
-- [ ] T021 [P] [US2] Testes em `#[cfg(test)] mod tests` de src/acoes.rs: `abrir_pane_com(None, …)` e `abrir_pane_com(Some("0"), …)` → `Err("herdr indisponível")` (sem executar herdr)
-- [ ] T022 [US2] Implementar em src/acoes.rs `abrir_pane_com(herdr_env: Option<&str>, caminho) -> Result<(), String>` (`herdr pane split --current --direction down --cwd <caminho absoluto>`; spawn falhou → "herdr indisponível"; exit ≠ 0 → stderr aparado) e `pub fn abrir_pane_herdr(caminho)` lendo `HERDR_ENV`
-- [ ] T023 [US2] Em src/main.rs, tratar `AcaoEnum::Enviar` (`pool.enviar`) e `AcaoEnum::AbrirPane` (`abrir_pane_herdr`; erro → `app.status`)
+- [X] T019 [US2] Testes em src/app.rs: `r` em Falhou → `Pendente`, log descartado e `Enviar` com `sem_rebase = false`; `n` no pull → `sem_rebase = true`; `n` no push → status "indisponível no push" sem ação; `R` reenvia todas as falhas; `r`/`n` em agregada, não Clonado, Pendente ou Executando → status e nenhuma ação; `p` em Clonado → `AbrirPane(caminho)`; `p` em agregada/não Clonado → status; após `q`, `r`/`n`/`R`/`p` ignorados
+- [X] T020 [US2] Implementar `r`, `n`, `R`, `p` em `App::tratar_tecla` em src/app.rs
+- [X] T021 [P] [US2] Testes em `#[cfg(test)] mod tests` de src/acoes.rs: `abrir_pane_com(None, …)` e `abrir_pane_com(Some("0"), …)` → `Err("herdr indisponível")` (sem executar herdr)
+- [X] T022 [US2] Implementar em src/acoes.rs `abrir_pane_com(herdr_env: Option<&str>, caminho) -> Result<(), String>` (`herdr pane split --current --direction down --cwd <caminho absoluto>`; spawn falhou → "herdr indisponível"; exit ≠ 0 → stderr aparado) e `pub fn abrir_pane_herdr(caminho)` lendo `HERDR_ENV`
+- [X] T023 [US2] Em src/main.rs, tratar `AcaoEnum::Enviar` (`pool.enviar`) e `AcaoEnum::AbrirPane` (`abrir_pane_herdr`; erro → `app.status`)
 
 **Checkpoint**: gate verde; commit `feat: acoes de reexecucao e pane do herdr`.
 
@@ -113,10 +113,10 @@ dentro do herdr abre pane no repo.
 
 **Independent Test**: cenários de push em tests/executor.rs e `resumo()` de push.
 
-- [ ] T024 [P] [US3] Testes em tests/executor.rs: push com commit local → `Enviado`; push sincronizado → `SemMudanca`; remote avançado → `Falhou(PushRejeitado)`
-- [ ] T025 [US3] Implementar Push em `executar` em src/executor.rs (FR-010)
-- [ ] T026 [P] [US3] Testes em src/app.rs: `resumo()` de push usa `enviados`; linhas `↑` agrupadas com Recebido/Enviado
-- [ ] T027 [US3] Ajustar src/app.rs para push (se T026 falhar) e garantir remote padrão `origin` no push em src/main.rs
+- [X] T024 [P] [US3] Testes em tests/executor.rs: push com commit local → `Enviado`; push sincronizado → `SemMudanca`; remote avançado → `Falhou(PushRejeitado)`
+- [X] T025 [US3] Implementar Push em `executar` em src/executor.rs (FR-010)
+- [X] T026 [P] [US3] Testes em src/app.rs: `resumo()` de push usa `enviados`; linhas `↑` agrupadas com Recebido/Enviado
+- [X] T027 [US3] Ajustar src/app.rs para push (se T026 falhar) e garantir remote padrão `origin` no push em src/main.rs
 
 **Checkpoint**: gate verde; commit `feat: metra push`.
 
@@ -124,10 +124,10 @@ dentro do herdr abre pane no repo.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T028 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` e `cargo test` limpos
-- [ ] T029 [P] Escrever README.md (pt-BR): propósito, instalação (`cargo install --path .`), uso (contracts/cli.md), atalhos (contracts/tui.md), pré-requisito dos testes (sem `pull.rebase`/`pull.ff` globais)
-- [ ] T030 [P] Script descartável /tmp/metra-fixture.sh (fora do repositório) conforme quickstart.md seção 2
-- [ ] T031 Executar quickstart.md seções 1–3 e registrar o resultado
+- [X] T028 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` e `cargo test` limpos
+- [X] T029 [P] Escrever README.md (pt-BR): propósito, instalação (`cargo install --path .`), uso (contracts/cli.md), atalhos (contracts/tui.md), pré-requisito dos testes (sem `pull.rebase`/`pull.ff` globais)
+- [X] T030 [P] Script descartável /tmp/metra-fixture.sh (fora do repositório) conforme quickstart.md seção 2
+- [X] T031 Executar quickstart.md seções 1–3 e registrar o resultado
 
 ---
 

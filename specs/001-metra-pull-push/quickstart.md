@@ -22,7 +22,8 @@ HEAD destacado, push enviado/rejeitado e pasta sem `.git` dentro de repo pai.
 O script descartável `/tmp/metra-fixture.sh` (fora do repositório; tarefa T030) cria
 `/tmp/metra-fixture/ws` (repo git pai com um commit) com repos `ok`, `recebe` (2 commits novos no
 upstream), `diverge` (commits em arquivos distintos nos dois lados), `conflita` (mesma linha de
-`a.txt` alterada nos dois lados) e `sujo` (upstream altera `a.txt`; clone com `a.txt` modificado
+`a.txt` alterada nos dois lados e `pull.rebase=false` local, para o pull padrão fazer merge e
+parar em CONFLICT em vez de Divergente) e `sujo` (upstream altera `a.txt`; clone com `a.txt` modificado
 sem commit), todos clonados de `/tmp/metra-fixture/upstream/<r>.git`, com o remote renomeado para
 `upstream` e na branch `build/teste`; a pasta `so-build/build/` sem `.git`; e `.meta` com
 `projects` = `ok, recebe, diverge, conflita, sujo, so-build, ausente`.
