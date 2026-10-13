@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
-use crate::executor::{self, Resultado, Tarefa};
+use crate::executor::{self, Cancelamento, Resultado, Tarefa};
 
 /// Evento emitido pelo pool.
 #[derive(Debug)]
@@ -18,6 +18,7 @@ pub enum Evento {
 pub struct Pool {
     sender: Option<mpsc::Sender<Tarefa>>,
     cancelado: Arc<AtomicBool>,
+    cancelamento: Arc<Cancelamento>,
 }
 
 impl Pool {
@@ -26,10 +27,12 @@ impl Pool {
         let (sender, receptor) = mpsc::channel::<Tarefa>();
         let receptor = Arc::new(Mutex::new(receptor));
         let cancelado = Arc::new(AtomicBool::new(false));
+        let cancelamento = Arc::new(Cancelamento::default());
         let trabalhadores: Vec<_> = (0..n.max(1))
             .map(|_| {
                 let receptor = Arc::clone(&receptor);
                 let cancelado = Arc::clone(&cancelado);
+                let cancelamento = Arc::clone(&cancelamento);
                 let eventos = eventos.clone();
                 thread::spawn(move || {
                     loop {
@@ -44,7 +47,7 @@ impl Pool {
                             continue;
                         }
                         let _ = eventos.send(Evento::Iniciou(tarefa.indice));
-                        let resultado = executor::executar(&tarefa);
+                        let resultado = executor::executar(&tarefa, &cancelamento);
                         let _ = eventos.send(Evento::Terminou(tarefa.indice, resultado));
                     }
                 })
@@ -61,6 +64,7 @@ impl Pool {
         Pool {
             sender: Some(sender),
             cancelado,
+            cancelamento,
         }
     }
 
@@ -77,5 +81,11 @@ impl Pool {
     pub fn encerrar(&mut self) {
         self.cancelado.store(true, Ordering::Release);
         self.sender.take();
+    }
+
+    /// Encerra e mata os comandos git em execução; as tarefas terminam como abortadas.
+    pub fn abortar(&mut self) {
+        self.encerrar();
+        self.cancelamento.abortar();
     }
 }

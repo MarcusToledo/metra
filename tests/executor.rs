@@ -1,11 +1,47 @@
 use std::fs;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Arc, mpsc};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use metra::classifica::TipoErroEnum;
-use metra::executor::{EstadoRepoEnum, OperacaoEnum, Tarefa, executar};
+use metra::executor::{Cancelamento, EstadoRepoEnum, OperacaoEnum, Resultado, Tarefa};
 use metra::repo::{Repo, SituacaoRepoEnum};
 use tempfile::TempDir;
+
+fn executar(tarefa: &Tarefa) -> Resultado {
+    metra::executor::executar(tarefa, &Cancelamento::default())
+}
+
+/// Aceita conexões TCP e nunca responde, como um host atrás de uma VPN que caiu.
+fn apontar_upstream_para_servidor_mudo(cenario: &Cenario) -> String {
+    let servidor = TcpListener::bind("127.0.0.1:0").expect("não foi possível abrir porta local");
+    let porta = servidor.local_addr().expect("porta local").port();
+    thread::spawn(move || {
+        let mut conexoes = Vec::new();
+        for conexao in servidor.incoming().flatten() {
+            conexoes.push(conexao);
+        }
+    });
+    let url = format!("ssh://git@127.0.0.1:{porta}/x.git");
+    git(&cenario.trab, &["remote", "set-url", "upstream", &url]);
+    format!("-p {porta} git@127.0.0.1")
+}
+
+fn processos_com(trecho: &str) -> usize {
+    fs::read_dir("/proc")
+        .expect("ler /proc")
+        .flatten()
+        .filter_map(|entrada| fs::read(entrada.path().join("cmdline")).ok())
+        .filter(|linha| {
+            String::from_utf8_lossy(linha)
+                .replace('\0', " ")
+                .contains(trecho)
+        })
+        .count()
+}
 
 fn verificar_ambiente() {
     for escopo in ["--global", "--system"] {
@@ -215,6 +251,66 @@ fn test_pull_remote_inexistente() {
     assert_eq!(
         resultado.estado,
         EstadoRepoEnum::Falhou(TipoErroEnum::RemoteInexistente)
+    );
+}
+
+#[test]
+fn test_pull_servidor_ssh_sem_resposta_falha_sem_travar() {
+    verificar_ambiente();
+    let cenario = Cenario::novo();
+    apontar_upstream_para_servidor_mudo(&cenario);
+
+    let tarefa = cenario.tarefa(OperacaoEnum::Pull, false);
+    let (sender, receptor) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = sender.send(executar(&tarefa));
+    });
+    let resultado = receptor
+        .recv_timeout(Duration::from_secs(45))
+        .expect("pull travou com servidor ssh sem resposta");
+    assert_eq!(
+        resultado.estado,
+        EstadoRepoEnum::Falhou(TipoErroEnum::RedeOuAutenticacao)
+    );
+}
+
+#[test]
+fn test_abortar_mata_pull_preso_e_o_ssh_filho() {
+    verificar_ambiente();
+    let cenario = Cenario::novo();
+    let destino_ssh = apontar_upstream_para_servidor_mudo(&cenario);
+
+    let tarefa = cenario.tarefa(OperacaoEnum::Pull, false);
+    let cancelamento = Arc::new(Cancelamento::default());
+    let (sender, receptor) = mpsc::channel();
+    let cancelamento_trabalhador = Arc::clone(&cancelamento);
+    thread::spawn(move || {
+        let _ = sender.send(metra::executor::executar(
+            &tarefa,
+            &cancelamento_trabalhador,
+        ));
+    });
+    let limite = Instant::now() + Duration::from_secs(10);
+    while processos_com(&destino_ssh) == 0 {
+        assert!(Instant::now() < limite, "ssh do pull não iniciou");
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    cancelamento.abortar();
+    let resultado = receptor
+        .recv_timeout(Duration::from_secs(5))
+        .expect("abortar não liberou o pull preso");
+    assert_eq!(
+        resultado.estado,
+        EstadoRepoEnum::Falhou(TipoErroEnum::Desconhecido("abortado pelo usuário".into()))
+    );
+    assert_eq!(processos_com(&destino_ssh), 0, "ssh filho sobreviveu");
+
+    let seguinte =
+        metra::executor::executar(&cenario.tarefa(OperacaoEnum::Pull, false), &cancelamento);
+    assert_eq!(
+        seguinte.log, "$ git rev-parse --abbrev-ref HEAD\nabortado pelo usuário\n",
+        "comandos após o aborto não devem iniciar"
     );
 }
 

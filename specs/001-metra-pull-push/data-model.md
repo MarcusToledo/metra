@@ -93,6 +93,7 @@ Regras de `classificar(texto)` e sua ordem: spec FR-013.
 | `detalhe_aberto: bool`, `rolagem: u16` | Painel de detalhe |
 | `status: Option<String>` | Barra de status |
 | `saindo: bool` | `q` pressionado; ações desabilitadas |
+| `abortando: bool` | Segundo `q`/Esc durante a saída; comandos em execução mortos |
 | `encerrado: bool` | `PoolEncerrado` recebido; loop termina |
 
 `LinhaEnum`: `Repo(usize)` para Falhou/Recebido/Enviado/Executando/Pendente;

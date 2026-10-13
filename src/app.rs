@@ -24,6 +24,8 @@ pub enum AcaoEnum {
     Enviar(Tarefa),
     AbrirPane(PathBuf),
     Sair,
+    /// Segundo `q`/`Esc` durante a saída: matar os comandos em execução.
+    Abortar,
 }
 
 /// Estado da tela.
@@ -45,6 +47,8 @@ pub struct App {
     pub status: Option<String>,
     /// `q` pressionado: ações desabilitadas, aguardando o pool.
     pub saindo: bool,
+    /// Segundo `q`/`Esc` durante a saída: comandos em execução foram mortos.
+    pub abortando: bool,
     /// `PoolEncerrado` recebido: o laço principal termina.
     pub encerrado: bool,
 }
@@ -65,6 +69,7 @@ impl App {
             rolagem: 0,
             status: None,
             saindo: false,
+            abortando: false,
             encerrado: false,
         }
     }
@@ -137,8 +142,13 @@ impl App {
             Evento::PoolEncerrado => self.encerrado = true,
         }
         self.selecao = self.selecao.min(self.linhas().len().saturating_sub(1));
-        if self.saindo {
-            self.status = Some(format!("aguardando {} tarefas…", self.executando()));
+        if self.abortando {
+            self.status = Some(format!("abortando {} tarefas…", self.executando()));
+        } else if self.saindo {
+            self.status = Some(format!(
+                "aguardando {} tarefas… (q de novo aborta)",
+                self.executando()
+            ));
         }
     }
 
@@ -225,8 +235,16 @@ impl App {
             KeyCode::Esc | KeyCode::Char('q') => {
                 if !self.saindo {
                     self.saindo = true;
-                    self.status = Some(format!("aguardando {} tarefas…", self.executando()));
+                    self.status = Some(format!(
+                        "aguardando {} tarefas… (q de novo aborta)",
+                        self.executando()
+                    ));
                     return vec![AcaoEnum::Sair];
+                }
+                if !self.abortando && self.executando() > 0 {
+                    self.abortando = true;
+                    self.status = Some(format!("abortando {} tarefas…", self.executando()));
+                    return vec![AcaoEnum::Abortar];
                 }
             }
             KeyCode::Char('r' | 'n' | 'R' | 'p') if self.saindo => {
@@ -566,19 +584,48 @@ mod tests {
         );
         app.aplicar(Evento::Iniciou(0));
         assert_eq!(app.tratar_tecla(KeyCode::Char('q')), vec![AcaoEnum::Sair]);
-        assert_eq!(app.status.as_deref(), Some("aguardando 1 tarefas…"));
+        assert_eq!(
+            app.status.as_deref(),
+            Some("aguardando 1 tarefas… (q de novo aborta)")
+        );
         assert!(app.ha_trabalho());
-        assert!(app.tratar_tecla(KeyCode::Char('q')).is_empty());
         terminar(&mut app, 0, EstadoRepoEnum::SemMudanca, "");
-        assert_eq!(app.status.as_deref(), Some("aguardando 0 tarefas…"));
+        assert_eq!(
+            app.status.as_deref(),
+            Some("aguardando 0 tarefas… (q de novo aborta)")
+        );
+        assert!(app.tratar_tecla(KeyCode::Char('q')).is_empty());
         assert!(!app.ha_trabalho());
         app.aplicar(Evento::PoolEncerrado);
         assert!(app.encerrado);
-        assert_eq!(app.status.as_deref(), Some("aguardando 0 tarefas…"));
+        assert_eq!(
+            app.status.as_deref(),
+            Some("aguardando 0 tarefas… (q de novo aborta)")
+        );
         for tecla in ['r', 'n', 'R', 'p'] {
             assert!(app.tratar_tecla(KeyCode::Char(tecla)).is_empty());
             assert_eq!(app.status.as_deref(), Some("saindo… ações desabilitadas"));
         }
+    }
+
+    #[test]
+    fn segundo_sair_aborta_uma_vez_enquanto_ha_execucao() {
+        let mut app = novo_app(
+            OperacaoEnum::Pull,
+            vec![
+                repo("a", SituacaoRepoEnum::Clonado),
+                repo("b", SituacaoRepoEnum::Clonado),
+            ],
+        );
+        app.aplicar(Evento::Iniciou(0));
+        app.aplicar(Evento::Iniciou(1));
+        assert_eq!(app.tratar_tecla(KeyCode::Char('q')), vec![AcaoEnum::Sair]);
+        assert_eq!(app.tratar_tecla(KeyCode::Esc), vec![AcaoEnum::Abortar]);
+        assert!(app.abortando);
+        assert_eq!(app.status.as_deref(), Some("abortando 2 tarefas…"));
+        assert!(app.tratar_tecla(KeyCode::Char('q')).is_empty());
+        terminar(&mut app, 0, EstadoRepoEnum::SemMudanca, "");
+        assert_eq!(app.status.as_deref(), Some("abortando 1 tarefas…"));
     }
 
     #[test]

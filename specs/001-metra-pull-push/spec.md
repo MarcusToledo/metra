@@ -144,7 +144,8 @@ repositórios varrendo as subpastas imediatas.
   travar.
 - Saída de erro não reconhecida: falha Desconhecido com a última linha não vazia da saída.
 - `q` com tarefas em execução: nenhuma nova tarefa é iniciada; as em execução terminam (status
-  "aguardando N tarefas…"); pendentes não executadas não entram em nenhum grupo da linha-resumo.
+  "aguardando N tarefas… (q de novo aborta)"); pendentes não executadas não entram em nenhum grupo
+  da linha-resumo. Um segundo `q`/Esc mata as em execução (FR-027).
 - Ações `r`, `n`, `R`, `p` em linhas agregadas ou repositórios não clonados/sem repositório:
   ignoradas com mensagem na barra de status.
 - Ações após `q`: desabilitadas.
@@ -193,7 +194,9 @@ repositórios varrendo as subpastas imediatas.
 - **FR-011**: Todo processo git MUST rodar sem possibilidade de solicitar entrada (sem prompt de
   terminal, entrada nula) e com mensagens em inglês padrão (locale C). Isso inclui o ssh: quando
   o usuário não definiu `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o ssh roda em modo
-  batch (`ssh -o BatchMode=yes`); se definiu, a configuração do usuário é respeitada.
+  batch e com limites de rede (`ssh -o BatchMode=yes -o ConnectTimeout=15 -o
+  ServerAliveInterval=15 -o ServerAliveCountMax=3`), para que uma conexão sem resposta falhe em
+  vez de prender a tarefa; se definiu, a configuração do usuário é respeitada.
 - **FR-012**: O log guardado de cada repositório MUST conter stdout e stderr de todos os comandos
   da tentativa mais recente.
 
@@ -272,6 +275,11 @@ repositórios varrendo as subpastas imediatas.
   restaurado e o stdout recebe a linha-resumo `metra pull: X sem mudança, Y recebidos, Z
   falhas[ (repo1, repo2…)], W não clonados, V sem repositório` (no push, `enviados` no lugar de
   `recebidos`). Após `q`, o spinner do cabeçalho só gira enquanto houver tarefa em execução.
+- **FR-027**: Um segundo `q` (ou Esc sem detalhe) durante a saída, com tarefas em execução, MUST
+  matar o grupo de processos de cada comando git em execução (incluindo o ssh filho), impedir
+  novos comandos e reportar essas tarefas como falha `Desconhecido("abortado pelo usuário")`
+  (status "abortando N tarefas…"); a saída então segue como na FR-023. Sem tarefas em execução,
+  a tecla é ignorada.
 - **FR-024**: Tarefas ainda pendentes na saída MUST contar como não executadas e não entrar em
   nenhum grupo da linha-resumo.
 - **FR-025**: O código de saída MUST ser 0 sem falhas, 1 com falhas e 2 para erro de configuração

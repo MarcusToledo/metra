@@ -122,24 +122,29 @@ tests/
   pub repo: Repo, pub operacao: OperacaoEnum, pub remote: String, pub sem_rebase: bool }`;
   `pub enum EstadoRepoEnum { Pendente, Executando, SemMudanca, Recebido(u32), Enviado,
   Falhou(TipoErroEnum) }`; `pub struct Resultado { pub estado: EstadoRepoEnum, pub branch:
-  Option<String>, pub log: String }`; `pub fn executar(tarefa: &Tarefa) -> Resultado`;
+  Option<String>, pub log: String }`; `pub fn executar(tarefa: &Tarefa, cancelamento:
+  &Cancelamento) -> Resultado` (após aborto, falha vira `Desconhecido("abortado pelo usuário")`);
   helper privado `git(caminho, args) -> (bool, String)` com `Command::new("git").arg("-C")`.
   ssh não-interativo: se `GIT_SSH_COMMAND` e `GIT_SSH` não estão no ambiente e
   `git -C <repo> config --get core.sshCommand` não devolve valor, o helper define
-  `GIT_SSH_COMMAND=ssh -o BatchMode=yes` nos comandos daquela tentativa.
+  `GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15
+  -o ServerAliveCountMax=3` nos comandos daquela tentativa.
   Falha em `rev-parse` (branch/commit) → `Falhou(Desconhecido(<última linha>))`.
   Repo não Clonado → `Falhou(Desconhecido("repositório não clonado"))` sem processo (defesa em
   profundidade; o app nunca envia).
 - **`pool.rs`**: `pub enum Evento { Iniciou(usize), Terminou(usize, Resultado), PoolEncerrado }`;
-  `pub struct Pool { sender: Option<mpsc::Sender<Tarefa>>, cancelado: Arc<AtomicBool> }` com
-  `iniciar(n, eventos: Sender<Evento>) -> Pool`, `enviar(Tarefa)`, `encerrar()` (seta
-  `cancelado`, dropa o sender). Workers leem `Arc<Mutex<Receiver<Tarefa>>>`; tarefa recebida com
-  `cancelado` verdadeiro é descartada sem evento. Uma thread "vigia" dá join nos workers e emite
-  `Evento::PoolEncerrado`.
+  `pub struct Pool { sender: Option<mpsc::Sender<Tarefa>>, cancelado: Arc<AtomicBool>,
+  cancelamento: Arc<Cancelamento> }` com `iniciar(n, eventos: Sender<Evento>) -> Pool`,
+  `enviar(Tarefa)`, `encerrar()` (seta `cancelado`, dropa o sender) e `abortar()` (`encerrar` +
+  `Cancelamento::abortar`, que mata com `kill(-pgid, SIGKILL)` os grupos dos git em execução; cada
+  git roda com `process_group(0)` para o ssh filho morrer junto). Workers leem
+  `Arc<Mutex<Receiver<Tarefa>>>`; tarefa recebida com `cancelado` verdadeiro é descartada sem
+  evento. Uma thread "vigia" dá join nos workers e emite `Evento::PoolEncerrado`.
 - **`app.rs`**: `App { operacao, remote, raiz, repos, estados, logs, branches, selecao,
-  detalhe_aberto, rolagem, status, saindo, encerrado }`; `linhas() -> Vec<LinhaEnum>` (grupos da
-  FR-016); `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` onde `AcaoEnum { Enviar(Tarefa), AbrirPane(PathBuf),
-  Sair }`; `aplicar(Evento)`; `resumo() -> String`; `codigo_saida() -> i32`. Sem I/O.
+  detalhe_aberto, rolagem, status, saindo, abortando, encerrado }`; `linhas() -> Vec<LinhaEnum>`
+  (grupos da FR-016); `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` onde `AcaoEnum { Enviar(Tarefa),
+  AbrirPane(PathBuf), Sair, Abortar }`; `aplicar(Evento)`; `resumo() -> String`;
+  `codigo_saida() -> i32`. Sem I/O.
 - **`acoes.rs`**: `pub fn abrir_pane_herdr(caminho: &Path) -> Result<(), String>`, que lê
   `HERDR_ENV` e delega a `fn abrir_pane_com(herdr_env: Option<&str>, caminho: &Path) ->
   Result<(), String>` (testável sem alterar o ambiente do processo).

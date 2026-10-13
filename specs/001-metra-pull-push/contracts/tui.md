@@ -36,9 +36,11 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 | `n` | Reexecuta com `--no-rebase` | Só pull; no push: "indisponível no push" |
 | `R` | Reexecuta todas as falhas | — |
 | `p` | `herdr pane split --current --direction down --cwd <repo>` | `HERDR_ENV=1`; senão "herdr indisponível" |
-| `q` | Inicia saída | Qualquer momento |
+| `q` | Inicia saída; durante a saída, aborta as em execução | Qualquer momento |
 | `Esc` | Fecha detalhe; sem detalhe, igual a `q` | — |
 
 `r`/`n` em linha agregada, repo não Clonado ou repo Pendente/Executando, e `p` em linha agregada ou
 repo não Clonado: ignorados com mensagem na barra de status. Após `q`: `r`, `n`, `R`, `p` ignorados; status
-"aguardando N tarefas…" até o pool encerrar.
+"aguardando N tarefas… (q de novo aborta)" até o pool encerrar. Segundo `q`/Esc com tarefas em execução:
+mata os comandos git (e ssh) em execução, status "abortando N tarefas…"; elas terminam como falha
+"abortado pelo usuário".

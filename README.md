@@ -64,7 +64,7 @@ A lista agrupa falhas primeiro, depois resultados recebidos/enviados, tarefas em
 | `n` | Reexecuta com `--no-rebase`. | Somente no pull; no push, informa “indisponível no push”. |
 | `R` | Reexecuta todos os repositórios com falha. | — |
 | `p` | Abre um pane do herdr no repositório. | Requer `HERDR_ENV=1`. |
-| `q` | Inicia a saída. | Disponível a qualquer momento; aguarda tarefas em execução. |
+| `q` | Inicia a saída; pressionado de novo durante a saída, aborta. | Disponível a qualquer momento; a primeira vez aguarda as tarefas em execução, a segunda mata os comandos git (e o ssh) em execução, que contam como falha "abortado pelo usuário". |
 | `Esc` | Fecha o detalhe ou inicia a saída. | Sem detalhe aberto, tem o efeito de `q`. |
 
 Ações incompatíveis com a linha selecionada ou após iniciar a saída são ignoradas, com mensagem na barra de status.
@@ -87,7 +87,7 @@ Ações incompatíveis com a linha selecionada ou após iniciar a saída são ig
 
 ## Execução segura e herdr
 
-O metra nunca executa Git em uma pasta sem `.git` próprio; pastas sem repositório próprio não fazem a operação subir para um repositório pai. Os comandos Git são não interativos, com `GIT_TERMINAL_PROMPT=0` e `LC_ALL=C`. Quando o usuário não configurou `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o SSH é executado com `BatchMode=yes`.
+O metra nunca executa Git em uma pasta sem `.git` próprio; pastas sem repositório próprio não fazem a operação subir para um repositório pai. Os comandos Git são não interativos, com `GIT_TERMINAL_PROMPT=0` e `LC_ALL=C`. Quando o usuário não configurou `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o SSH é executado com `BatchMode=yes`, `ConnectTimeout=15`, `ServerAliveInterval=15` e `ServerAliveCountMax=3`: uma conexão que não responde (por exemplo, após queda da VPN) falha como rede/autenticação em vez de prender a tarefa.
 
 A integração com herdr é opcional. A tecla `p` abre um pane no repositório selecionado somente quando `HERDR_ENV=1`; fora desse ambiente ou se o comando falhar, o metra informa o problema na barra de status e continua em execução.
 

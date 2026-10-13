@@ -130,6 +130,7 @@ fn rodar(
                         }
                     }
                     AcaoEnum::Sair => pool.encerrar(),
+                    AcaoEnum::Abortar => pool.abortar(),
                 }
             }
         }
