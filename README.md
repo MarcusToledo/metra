@@ -43,7 +43,7 @@ metra pull: X sem mudança, Y recebidos, Z falhas (repo1, repo2), W não clonado
 metra push: X sem mudança, Y enviados, Z falhas (repo1, repo2), W não clonados, V sem repositório
 ```
 
-A lista de repositórios com falha aparece somente quando há falhas. Erros de configuração e descoberta são exibidos no stderr, sem abrir a TUI: `.meta` não encontrado, erro ao interpretar o JSON ou nenhum repositório encontrado.
+A lista de repositórios com falha aparece somente quando há falhas. No push, cada repositório cujo remote anunciou um link de merge/pull request gera em seguida uma linha `merge <repo>: <url>`. Erros de configuração e descoberta são exibidos no stderr, sem abrir a TUI: `.meta` não encontrado, erro ao interpretar o JSON ou nenhum repositório encontrado.
 
 | Código | Significado |
 |---|---|
@@ -53,7 +53,7 @@ A lista de repositórios com falha aparece somente quando há falhas. Erros de c
 
 ## Tela e atalhos
 
-A lista agrupa falhas primeiro, depois resultados recebidos/enviados, tarefas em execução e pendentes, e por fim as linhas agregadas de sem mudança, não clonados e pastas sem repositório. A ordem da fonte é mantida dentro de cada grupo. O detalhe mostra a branch, a dica correspondente e o log rolável; nas linhas agregadas, mostra os nomes. A barra de status informa mensagens e, ao sair com tarefas em execução, indica que está aguardando.
+A lista agrupa falhas primeiro, depois resultados recebidos/enviados, tarefas em execução e pendentes, e por fim as linhas agregadas de sem mudança, não clonados e pastas sem repositório. A ordem da fonte é mantida dentro de cada grupo. No push, um repositório enviado cujo remote anunciou um link de merge/pull request aparece como `↑ <repo>  ⇗ merge`. O detalhe mostra a branch, o link de merge (quando houver), a dica correspondente e o log rolável; nas linhas agregadas, mostra os nomes. A barra de status informa mensagens e, ao sair com tarefas em execução, indica que está aguardando.
 
 | Tecla | Efeito | Restrições |
 |---|---|---|
@@ -64,6 +64,7 @@ A lista agrupa falhas primeiro, depois resultados recebidos/enviados, tarefas em
 | `n` | Reexecuta com `--no-rebase`. | Somente no pull; no push, informa “indisponível no push”. |
 | `R` | Reexecuta todos os repositórios com falha. | — |
 | `p` | Abre um pane do herdr no repositório. | Requer `HERDR_ENV=1`. |
+| `m` | Abre no navegador o link de merge/pull request anunciado pelo push. | Repositório com link; usa `xdg-open`. |
 | `q` | Inicia a saída; pressionado de novo durante a saída, aborta. | Disponível a qualquer momento; a primeira vez aguarda as tarefas em execução, a segunda mata os comandos git (e o ssh) em execução, que contam como falha "abortado pelo usuário". |
 | `Esc` | Fecha o detalhe ou inicia a saída. | Sem detalhe aberto, tem o efeito de `q`. |
 

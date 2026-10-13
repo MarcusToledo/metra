@@ -122,6 +122,25 @@ dentro do herdr abre pane no repo.
 
 ---
 
+## Phase 7: Emenda — Link de merge no push (FR-028, FR-029)
+
+**Goal**: detectar link de merge no push, `m` abre no navegador, links impressos após a saída.
+
+**Independent Test**: hook post-receive anunciando link → `↑ trab  ⇗ merge`, detalhe `merge: <url>`.
+
+- [X] T032 [P] [US3] Testes em `#[cfg(test)] mod tests` de src/executor.rs: `extrair_link_merge` com GitLab criação, GitLab existente, GitHub, URL sem anúncio → None, push sem `remote:` → None
+- [X] T033 [P] [US3] Teste em tests/executor.rs: hook post-receive com anúncio GitLab → `Enviado` e `link_merge` = URL; `link_merge == None` em push sem hook e sem mudança
+- [X] T034 [US3] Implementar `Resultado::link_merge` e `extrair_link_merge` em src/executor.rs (FR-028)
+- [X] T035 [P] [US3] Testes em src/app.rs: `m` com link → `AbrirNavegador(url)`; sem link/agregada → status; após `q` → ignorado; detalhe `merge: <url>`; `r` descarta link; `linhas_merge()`
+- [X] T036 [US3] Implementar `links_merge`, `AcaoEnum::AbrirNavegador`, tecla `m`, detalhe e `linhas_merge()` em src/app.rs (FR-016, FR-017, FR-029)
+- [X] T037 [P] [US3] Teste em src/ui.rs: `↑ <repo>  ⇗ merge` e `merge: https://` no detalhe; implementar marca e rodapé
+- [X] T038 [US3] Implementar `abrir_navegador` em src/acoes.rs e tratar `AbrirNavegador` + impressão de `linhas_merge()` em src/main.rs (FR-023, FR-029)
+- [X] T039 Atualizar README.md (atalho `m`, marca `⇗ merge`, linhas `merge` no stdout); `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`; smoke de push com link
+
+**Checkpoint**: gate verde; commit `feat: link de merge no metra push`.
+
+---
+
 ## Phase 6: Polish & Cross-Cutting
 
 - [X] T028 `cargo fmt`, `cargo clippy --all-targets -- -D warnings` e `cargo test` limpos
@@ -145,6 +164,8 @@ graph LR
   US1 --> US2[US2 T019-T023]
   US2 --> US3[US3 T024-T027]
   US3 --> X[Polish T028-T031]
+  US3 --> LM[Link de merge T032-T039]
+  LM --> X
 ```
 
 Ordem de dependência: setup → classifica → fonte → executor → pool → app/ui/acoes → main →

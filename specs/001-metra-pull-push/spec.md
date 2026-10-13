@@ -94,7 +94,8 @@ O desenvolvedor roda `metra push` para enviar a branch atual de cada repositóri
 
 **Independent Test**: workspace de teste com um repositório com commit local não enviado, um
 sincronizado e um cujo remote tem commits que o local não tem; rodar `metra push` e conferir
-`↑ <repo>`, `✓ 1 sem mudança` e a falha de push rejeitado.
+`↑ <repo>`, `✓ 1 sem mudança` e a falha de push rejeitado; com um hook post-receive no remote que
+anuncia um link de merge, conferir `↑ <repo>  ⇗ merge`.
 
 **Acceptance Scenarios**:
 
@@ -106,6 +107,10 @@ sincronizado e um cujo remote tem commits que o local não tem; rodar `metra pus
    falha de push rejeitado.
 4. **Given** a execução terminada, **When** o usuário pressiona `q`, **Then** a linha-resumo usa
    `enviados` no lugar de `recebidos`.
+5. **Given** um push cujo remote anuncia um link de merge/pull request (ex.: GitLab "To create a
+   merge request for <branch>, visit:"), **When** o push termina, **Then** a lista mostra
+   `↑ <repo>  ⇗ merge`, o detalhe mostra `merge: <url>`, `m` abre a URL no navegador e, após `q`,
+   o stdout recebe `merge <repo>: <url>` depois da linha-resumo.
 
 ---
 
@@ -149,6 +154,9 @@ repositórios varrendo as subpastas imediatas.
 - Ações `r`, `n`, `R`, `p` em linhas agregadas ou repositórios não clonados/sem repositório:
   ignoradas com mensagem na barra de status.
 - Ações após `q`: desabilitadas.
+- Push sem link de merge (remote sem anúncio ou "Everything up-to-date") e linhas agregadas: `m`
+  mostra "nenhum link de merge para esta linha".
+- `xdg-open` ausente: `m` mostra "xdg-open indisponível" e o app continua.
 - Caminho do `.meta` com subdiretórios (ex.: `grupo/repo`): tratado como caminho relativo à raiz.
 
 ## Requirements *(mandatory)*
@@ -190,7 +198,8 @@ repositórios varrendo as subpastas imediatas.
   (ex.: repositório sem commits), o resultado é Falhou(Desconhecido) com a última linha não
   vazia da saída.
 - **FR-010**: Push MUST obter a branch como no pull e executar `git push <remote> <branch>`; em
-  sucesso, saída contendo "Everything up-to-date" → SemMudanca, senão Enviado.
+  sucesso, saída contendo "Everything up-to-date" → SemMudanca, senão Enviado; no Enviado, o link
+  de merge é extraído conforme a FR-028.
 - **FR-011**: Todo processo git MUST rodar sem possibilidade de solicitar entrada (sem prompt de
   terminal, entrada nula) e com mensagens em inglês padrão (locale C). Isso inclui o ssh: quando
   o usuário não definiu `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o ssh roda em modo
@@ -243,16 +252,19 @@ repositórios varrendo as subpastas imediatas.
   `metra <operação> · remote <remote> · <raiz>`, o contador `concluídos/total` e um spinner
   enquanto houver tarefa pendente ou em execução.
 - **FR-016**: A lista MUST exibir, nesta ordem de grupos e na ordem da fonte dentro de cada grupo:
-  Falhou (`✗ <repo>  <texto do erro>`); Recebido (`↓ <repo>  N commits`) ou Enviado
-  (`↑ <repo>`); Executando (`⠋ <repo>`, com spinner); Pendente (`· <repo>`); a linha agregada
+  Falhou (`✗ <repo>  <texto do erro>`); Recebido (`↓ <repo>  N commits`) ou Enviado (`↑ <repo>`,
+  ou `↑ <repo>  ⇗ merge` com link de merge — FR-028); Executando (`⠋ <repo>`, com spinner);
+  Pendente (`· <repo>`); a linha agregada
   `✓ N sem mudança`; a linha agregada `○ N não clonados`; a linha agregada
   `⚠ N pastas sem repositório`.
 - **FR-017**: Enter MUST alternar o painel de detalhe; para um repositório, o painel mostra a
-  branch, o log completo com rolagem (PgUp/PgDn) e a dica do tipo de erro; para uma linha
+  branch, o link de merge (`merge: <url>`) quando houver, o log completo com rolagem (PgUp/PgDn) e
+  a dica do tipo de erro; para uma linha
   agregada, mostra os nomes dos repositórios do grupo.
 - **FR-018**: O rodapé MUST listar os atalhos: ↑/↓ e k/j navegam; Enter detalhe; PgUp/PgDn rolam
   o log; `r` reexecuta o selecionado; `n` reexecuta com `--no-rebase`; `R` reexecuta todas as
-  falhas; `p` abre pane do herdr; `q` sai; Esc fecha o detalhe se aberto, senão sai.
+  falhas; `p` abre pane do herdr; `m` abre o link de merge no navegador; `q` sai; Esc fecha o
+  detalhe se aberto, senão sai.
 - **FR-019**: Reexecução MUST levar o repositório de volta a Pendente, descartar o log anterior e
   reenviá-lo para execução. `n` no push MUST apenas mostrar "indisponível no push" na barra de
   status.
@@ -268,13 +280,27 @@ repositórios varrendo as subpastas imediatas.
 - **FR-022**: Fora do herdr, a barra de status MUST mostrar "herdr indisponível"; se o comando
   falhar, MUST mostrar o stderr do herdr; em ambos os casos o app continua.
 
+**Link de merge**
+
+- **FR-028**: Em push Enviado, o sistema MUST extrair da saída do `git push` a primeira URL
+  `http://`/`https://` de uma linha `remote:` que venha logo após (ignorando linhas `remote:`
+  vazias) uma linha `remote:` contendo "merge request" ou "pull request" (sem diferenciar
+  maiúsculas) — cobre GitLab ("To create a merge request…", "View merge request…"), GitHub e
+  Bitbucket ("Create a pull request…"). SemMudanca e Falhou não têm link; a reexecução descarta o
+  link anterior.
+- **FR-029**: `m` sobre um repositório com link MUST abrir a URL com `xdg-open` (sem shell, saída
+  descartada, sem bloquear a TUI) e mostrar "link de merge aberto no navegador"; sem link ou em
+  linha agregada, "nenhum link de merge para esta linha"; se `xdg-open` não puder ser iniciado,
+  "xdg-open indisponível". Após `q`, `m` é ignorado como as demais ações.
+
 **Saída**
 
 - **FR-023**: `q` MUST funcionar a qualquer momento: nenhuma nova tarefa é iniciada, as em execução
   são aguardadas (status "aguardando N tarefas…", N = tarefas em execução), o terminal é
   restaurado e o stdout recebe a linha-resumo `metra pull: X sem mudança, Y recebidos, Z
   falhas[ (repo1, repo2…)], W não clonados, V sem repositório` (no push, `enviados` no lugar de
-  `recebidos`). Após `q`, o spinner do cabeçalho só gira enquanto houver tarefa em execução.
+  `recebidos`). Após `q`, o spinner do cabeçalho só gira enquanto houver tarefa em execução. Em
+  seguida, uma linha `merge <repo>: <url>` por repositório com link de merge, na ordem da fonte.
 - **FR-027**: Um segundo `q` (ou Esc sem detalhe) durante a saída, com tarefas em execução, MUST
   matar o grupo de processos de cada comando git em execução (incluindo o ssh filho), impedir
   novos comandos e reportar essas tarefas como falha `Desconhecido("abortado pelo usuário")`
@@ -292,7 +318,8 @@ repositórios varrendo as subpastas imediatas.
   (Clonado, NaoClonado, SemRepositorio).
 - **Tarefa**: repositório, operação (Pull ou Push), remote e indicação de merge sem rebase.
 - **Estado do repositório**: Pendente, Executando, SemMudanca, Recebido(N commits), Enviado ou
-  Falhou(tipo de erro); acompanhado do log da última tentativa e da branch.
+  Falhou(tipo de erro); acompanhado do log da última tentativa, da branch e, no push, do link de
+  merge.
 - **Tipo de erro**: um dos tipos da FR-013, com texto curto e dica.
 - **Fonte de repositórios**: Meta (arquivo `.meta`) ou Varredura (subpastas); extensível a novas
   fontes.
@@ -320,3 +347,4 @@ repositórios varrendo as subpastas imediatas.
 - O git instalado é 2.34 ou mais recente; as mensagens classificadas são as do locale C.
 - O herdr é opcional; sem ele, todas as demais funcionalidades permanecem disponíveis.
 - Clonar repositórios ausentes está fora do escopo; eles apenas são reportados.
+- O navegador é aberto com `xdg-open` (Linux); outros sistemas estão fora do escopo.

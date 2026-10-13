@@ -8,16 +8,17 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 ✗ diverge  branches divergentes
 ✗ conflita  conflito em a.txt
 ↓ recebe  2 commits
+↑ publica  ⇗ merge
 ⠋ lento
 · aguardando
 ✓ 30 sem mudança
 ○ 7 não clonados
 ⚠ 1 pastas sem repositório
 ────────────────────────────────────────────────────────────────────────
-[detalhe, quando aberto: branch, dica e log rolável]
+[detalhe, quando aberto: branch, link de merge, dica e log rolável]
 ────────────────────────────────────────────────────────────────────────
 <barra de status>
-↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · q/Esc sair
+↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · m merge · q/Esc sair
 ```
 
 - Ordem dos grupos: Falhou → Recebido/Enviado → Executando → Pendente → `✓` → `○` → `⚠`; ordem
@@ -36,11 +37,12 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 | `n` | Reexecuta com `--no-rebase` | Só pull; no push: "indisponível no push" |
 | `R` | Reexecuta todas as falhas | — |
 | `p` | `herdr pane split --current --direction down --cwd <repo>` | `HERDR_ENV=1`; senão "herdr indisponível" |
+| `m` | `xdg-open <url>` do link de merge | Repo com link; senão "nenhum link de merge para esta linha"; sem xdg-open, "xdg-open indisponível" |
 | `q` | Inicia saída; durante a saída, aborta as em execução | Qualquer momento |
 | `Esc` | Fecha detalhe; sem detalhe, igual a `q` | — |
 
 `r`/`n` em linha agregada, repo não Clonado ou repo Pendente/Executando, e `p` em linha agregada ou
-repo não Clonado: ignorados com mensagem na barra de status. Após `q`: `r`, `n`, `R`, `p` ignorados; status
+repo não Clonado: ignorados com mensagem na barra de status. Após `q`: `r`, `n`, `R`, `p`, `m` ignorados; status
 "aguardando N tarefas… (q de novo aborta)" até o pool encerrar. Segundo `q`/Esc com tarefas em execução:
 mata os comandos git (e ssh) em execução, status "abortando N tarefas…"; elas terminam como falha
 "abortado pelo usuário".

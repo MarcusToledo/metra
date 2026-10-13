@@ -23,6 +23,8 @@ pub enum LinhaEnum {
 pub enum AcaoEnum {
     Enviar(Tarefa),
     AbrirPane(PathBuf),
+    /// `m`: abrir o link de merge no navegador.
+    AbrirNavegador(String),
     Sair,
     /// Segundo `q`/`Esc` durante a saída: matar os comandos em execução.
     Abortar,
@@ -40,6 +42,8 @@ pub struct App {
     pub estados: Vec<EstadoRepoEnum>,
     pub logs: Vec<String>,
     pub branches: Vec<Option<String>>,
+    /// Por índice de `repos`; link de merge do último push.
+    pub links_merge: Vec<Option<String>>,
     /// Índice em `linhas()`.
     pub selecao: usize,
     pub detalhe_aberto: bool,
@@ -64,6 +68,7 @@ impl App {
             estados: vec![EstadoRepoEnum::Pendente; quantidade],
             logs: vec![String::new(); quantidade],
             branches: vec![None; quantidade],
+            links_merge: vec![None; quantidade],
             selecao: 0,
             detalhe_aberto: false,
             rolagem: 0,
@@ -138,6 +143,7 @@ impl App {
                 self.estados[indice] = resultado.estado;
                 self.branches[indice] = resultado.branch;
                 self.logs[indice] = resultado.log;
+                self.links_merge[indice] = resultado.link_merge;
             }
             Evento::PoolEncerrado => self.encerrado = true,
         }
@@ -204,6 +210,7 @@ impl App {
             ) {
                 self.estados[indice] = EstadoRepoEnum::Pendente;
                 self.logs[indice].clear();
+                self.links_merge[indice] = None;
                 return vec![AcaoEnum::Enviar(self.tarefa(indice, sem_rebase))];
             }
         }
@@ -247,7 +254,7 @@ impl App {
                     return vec![AcaoEnum::Abortar];
                 }
             }
-            KeyCode::Char('r' | 'n' | 'R' | 'p') if self.saindo => {
+            KeyCode::Char('r' | 'n' | 'R' | 'p' | 'm') if self.saindo => {
                 self.status = Some("saindo… ações desabilitadas".into());
             }
             KeyCode::Char('r') => return self.repetir(false),
@@ -279,6 +286,7 @@ impl App {
                     for indice in falhas {
                         self.estados[indice] = EstadoRepoEnum::Pendente;
                         self.logs[indice].clear();
+                        self.links_merge[indice] = None;
                     }
                     return acoes;
                 }
@@ -288,6 +296,14 @@ impl App {
                     return vec![AcaoEnum::AbrirPane(self.repos[*indice].caminho.clone())];
                 }
                 self.status = Some("ação indisponível para esta linha".into());
+            }
+            KeyCode::Char('m') => {
+                if let Some(LinhaEnum::Repo(indice)) = self.linhas().get(self.selecao)
+                    && let Some(url) = &self.links_merge[*indice]
+                {
+                    return vec![AcaoEnum::AbrirNavegador(url.clone())];
+                }
+                self.status = Some("nenhum link de merge para esta linha".into());
             }
             _ => {}
         }
@@ -301,6 +317,9 @@ impl App {
                     "branch: {}",
                     self.branches[*indice].as_deref().unwrap_or("?")
                 )];
+                if let Some(url) = &self.links_merge[*indice] {
+                    linhas.push(format!("merge: {url}"));
+                }
                 if let EstadoRepoEnum::Falhou(erro) = &self.estados[*indice] {
                     linhas.push(erro.dica().into());
                 }
@@ -361,6 +380,18 @@ impl App {
         )
     }
 
+    /// Uma linha `merge <repo>: <url>` por repo com link, na ordem da fonte.
+    pub fn linhas_merge(&self) -> Vec<String> {
+        self.repos
+            .iter()
+            .zip(&self.links_merge)
+            .filter_map(|(repo, link)| {
+                link.as_ref()
+                    .map(|url| format!("merge {}: {url}", repo.nome))
+            })
+            .collect()
+    }
+
     pub fn codigo_saida(&self) -> i32 {
         i32::from(self.repos.iter().enumerate().any(|(indice, repo)| {
             repo.situacao == SituacaoRepoEnum::Clonado
@@ -400,8 +431,87 @@ mod tests {
                 estado,
                 branch: Some("principal".into()),
                 log: log.into(),
+                link_merge: None,
             },
         ));
+    }
+
+    fn terminar_com_link(app: &mut App, indice: usize, url: &str) {
+        app.aplicar(Evento::Terminou(
+            indice,
+            Resultado {
+                estado: EstadoRepoEnum::Enviado,
+                branch: Some("principal".into()),
+                log: String::new(),
+                link_merge: Some(url.into()),
+            },
+        ));
+    }
+
+    #[test]
+    fn test_merge_abre_link_somente_em_repo_com_link() {
+        const URL: &str = "https://gitlab.exemplo/g/p/-/merge_requests/12";
+        let mut app = novo_app(
+            OperacaoEnum::Push,
+            vec![
+                repo("com_link", SituacaoRepoEnum::Clonado),
+                repo("sem_link", SituacaoRepoEnum::Clonado),
+                repo("parado", SituacaoRepoEnum::Clonado),
+            ],
+        );
+        terminar_com_link(&mut app, 0, URL);
+        terminar(&mut app, 1, EstadoRepoEnum::Enviado, "");
+        terminar(&mut app, 2, EstadoRepoEnum::SemMudanca, "");
+        assert_eq!(
+            app.tratar_tecla(KeyCode::Char('m')),
+            vec![AcaoEnum::AbrirNavegador(URL.into())]
+        );
+        for selecao in [1, 2] {
+            app.selecao = selecao;
+            app.status = None;
+            assert!(app.tratar_tecla(KeyCode::Char('m')).is_empty());
+            assert_eq!(
+                app.status.as_deref(),
+                Some("nenhum link de merge para esta linha")
+            );
+        }
+        app.selecao = 0;
+        app.tratar_tecla(KeyCode::Char('q'));
+        assert!(app.tratar_tecla(KeyCode::Char('m')).is_empty());
+        assert_eq!(app.status.as_deref(), Some("saindo… ações desabilitadas"));
+    }
+
+    #[test]
+    fn test_detalhe_mostra_link_e_repetir_descarta() {
+        const URL: &str = "https://github.com/o/r/pull/new/feat";
+        let mut app = novo_app(
+            OperacaoEnum::Push,
+            vec![repo("um", SituacaoRepoEnum::Clonado)],
+        );
+        terminar_com_link(&mut app, 0, URL);
+        assert_eq!(app.texto_detalhe()[1], format!("merge: {URL}"));
+        app.tratar_tecla(KeyCode::Char('r'));
+        assert_eq!(app.links_merge[0], None);
+        assert!(
+            app.texto_detalhe()
+                .iter()
+                .all(|linha| !linha.starts_with("merge:"))
+        );
+    }
+
+    #[test]
+    fn test_linhas_merge_somente_repos_com_link_na_ordem_da_fonte() {
+        const URL: &str = "https://gitlab.exemplo/g/dois/-/merge_requests/3";
+        let mut app = novo_app(
+            OperacaoEnum::Push,
+            vec![
+                repo("um", SituacaoRepoEnum::Clonado),
+                repo("dois", SituacaoRepoEnum::Clonado),
+            ],
+        );
+        terminar(&mut app, 0, EstadoRepoEnum::Enviado, "");
+        terminar_com_link(&mut app, 1, URL);
+        assert_eq!(app.linhas_merge(), vec![format!("merge dois: {URL}")]);
     }
 
     #[test]

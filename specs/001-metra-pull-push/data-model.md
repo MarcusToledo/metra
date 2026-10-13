@@ -39,6 +39,7 @@ Só `Clonado` gera `Tarefa`.
 | `estado` | `EstadoRepoEnum` (nunca `Pendente`/`Executando`) |
 | `branch` | `Option<String>` (`None` se o `rev-parse` falhou) |
 | `log` | `String` — stdout+stderr de todos os comandos da tentativa, com o comando como cabeçalho |
+| `link_merge` | `Option<String>` — URL de merge/pull request anunciada no push Enviado (FR-028) |
 
 ## EstadoRepoEnum
 
@@ -89,6 +90,7 @@ Regras de `classificar(texto)` e sua ordem: spec FR-013.
 | `operacao`, `remote`, `raiz` | Cabeçalho e criação de tarefas |
 | `repos: Vec<Repo>` | Ordem da fonte |
 | `estados: Vec<EstadoRepoEnum>`, `logs: Vec<String>`, `branches: Vec<Option<String>>` | Por índice; não Clonado não tem estado de execução |
+| `links_merge: Vec<Option<String>>` | Por índice; link do último push, descartado na reexecução |
 | `selecao: usize` | Índice em `linhas()` |
 | `detalhe_aberto: bool`, `rolagem: u16` | Painel de detalhe |
 | `status: Option<String>` | Barra de status |

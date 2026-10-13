@@ -1,5 +1,6 @@
-//! Integrações externas opcionais (herdr).
+//! Integrações externas opcionais (herdr, navegador).
 
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -42,6 +43,23 @@ pub fn abrir_pane_com(herdr_env: Option<&str>, caminho: &Path) -> Result<(), Str
 pub fn abrir_pane_herdr(caminho: &Path) -> Result<(), String> {
     let herdr_env = std::env::var("HERDR_ENV").ok();
     abrir_pane_com(herdr_env.as_deref(), caminho)
+}
+
+/// Abre a URL no navegador padrão via `xdg-open`, sem bloquear a TUI.
+pub fn abrir_navegador(url: &str) -> Result<(), String> {
+    // Saída do navegador corromperia a tela; grupo próprio isola de sinais do terminal.
+    let mut filho = Command::new("xdg-open")
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map_err(|_| "xdg-open indisponível".to_string())?;
+    std::thread::spawn(move || {
+        let _ = filho.wait();
+    });
+    Ok(())
 }
 
 #[cfg(test)]

@@ -10,8 +10,9 @@ use crate::app::{App, LinhaEnum};
 use crate::executor::{EstadoRepoEnum, OperacaoEnum};
 
 const QUADROS: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const RODAPE: &str = "↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · q/Esc sair";
-const RODAPE_COMPACTO: &str = "↑↓/jk · Enter · PgUp/PgDn · r · n --no-rebase · R · p · q/Esc sair";
+const RODAPE: &str = "↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · m merge · q/Esc sair";
+const RODAPE_COMPACTO: &str =
+    "↑↓/jk · Enter · PgUp/PgDn · r · n --no-rebase · R · p · m · q/Esc sair";
 
 /// Desenha o estado atual; `quadro` avança a cada desenho no laço principal.
 pub fn desenhar(frame: &mut Frame, app: &App, quadro: usize) {
@@ -71,7 +72,14 @@ pub fn desenhar(frame: &mut Frame, app: &App, quadro: usize) {
                             ),
                             Color::Green,
                         ),
-                        EstadoRepoEnum::Enviado => (format!("↑ {nome}"), Color::Green),
+                        EstadoRepoEnum::Enviado => {
+                            let texto = if app.links_merge[indice].is_some() {
+                                format!("↑ {nome}  ⇗ merge")
+                            } else {
+                                format!("↑ {nome}")
+                            };
+                            (texto, Color::Green)
+                        }
                         EstadoRepoEnum::Executando => (
                             format!("{} {nome}", QUADROS[quadro % QUADROS.len()]),
                             Color::Yellow,
@@ -165,6 +173,7 @@ mod tests {
                     estado,
                     branch: Some("build/teste".into()),
                     log: "fatal: Need to specify how to reconcile divergent branches.".into(),
+                    link_merge: None,
                 },
             ));
         }
@@ -209,5 +218,28 @@ mod tests {
         assert!(texto.contains("branch:"));
         assert!(texto.contains("use [n] para merge com --no-rebase"));
         assert!(texto.contains("Need to specify how to reconcile divergent branches"));
+    }
+
+    #[test]
+    fn test_exibe_marca_e_link_de_merge_no_push() {
+        let raiz = PathBuf::from("/workspace");
+        let repos = vec![Repo {
+            nome: "publica".into(),
+            caminho: raiz.join("publica"),
+            situacao: SituacaoRepoEnum::Clonado,
+        }];
+        let mut app = App::new(OperacaoEnum::Push, "origin".into(), raiz, repos);
+        app.aplicar(Evento::Terminou(
+            0,
+            Resultado {
+                estado: EstadoRepoEnum::Enviado,
+                branch: Some("feat".into()),
+                log: String::new(),
+                link_merge: Some("https://gitlab.exemplo/g/p/-/merge_requests/12".into()),
+            },
+        ));
+        assert!(tela(&app).contains("↑ publica  ⇗ merge"));
+        app.tratar_tecla(KeyCode::Enter);
+        assert!(tela(&app).contains("merge: https://"));
     }
 }

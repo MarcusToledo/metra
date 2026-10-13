@@ -1,5 +1,6 @@
 use std::fs;
 use std::net::TcpListener;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, mpsc};
@@ -364,6 +365,7 @@ fn test_push_envia_commit() {
         git(&cenario.raiz.join("up.git"), &["rev-parse", "main"]),
         esperado
     );
+    assert_eq!(resultado.link_merge, None);
 }
 
 #[test]
@@ -373,6 +375,28 @@ fn test_push_sem_mudanca() {
     let resultado = executar(&cenario.tarefa(OperacaoEnum::Push, false));
     assert_eq!(resultado.estado, EstadoRepoEnum::SemMudanca);
     assert!(resultado.log.contains("Everything up-to-date"));
+    assert_eq!(resultado.link_merge, None);
+}
+
+#[test]
+fn test_push_com_link_de_merge() {
+    const URL: &str = "https://gitlab.exemplo.invalid/g/trab/-/merge_requests/new?merge_request%5Bsource_branch%5D=main";
+    verificar_ambiente();
+    let cenario = Cenario::novo();
+    let hook = cenario.raiz.join("up.git/hooks/post-receive");
+    fs::write(
+        &hook,
+        format!(
+            "#!/bin/sh\necho\necho \"To create a merge request for main, visit:\"\necho \"  {URL}\"\n"
+        ),
+    )
+    .expect("não foi possível gravar o hook");
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755))
+        .expect("não foi possível tornar o hook executável");
+    Cenario::commit(&cenario.trab, "a.txt", "local\n");
+    let resultado = executar(&cenario.tarefa(OperacaoEnum::Push, false));
+    assert_eq!(resultado.estado, EstadoRepoEnum::Enviado);
+    assert_eq!(resultado.link_merge.as_deref(), Some(URL));
 }
 
 #[test]

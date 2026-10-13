@@ -122,8 +122,10 @@ tests/
   pub repo: Repo, pub operacao: OperacaoEnum, pub remote: String, pub sem_rebase: bool }`;
   `pub enum EstadoRepoEnum { Pendente, Executando, SemMudanca, Recebido(u32), Enviado,
   Falhou(TipoErroEnum) }`; `pub struct Resultado { pub estado: EstadoRepoEnum, pub branch:
-  Option<String>, pub log: String }`; `pub fn executar(tarefa: &Tarefa, cancelamento:
-  &Cancelamento) -> Resultado` (após aborto, falha vira `Desconhecido("abortado pelo usuário")`);
+  Option<String>, pub log: String, pub link_merge: Option<String> }`; `pub fn executar(tarefa:
+  &Tarefa, cancelamento: &Cancelamento) -> Resultado` (após aborto, falha vira
+  `Desconhecido("abortado pelo usuário")`); helper privado puro `extrair_link_merge(saida: &str) ->
+  Option<String>` (FR-028), chamado só no Push que resulta em Enviado;
   helper privado `git(caminho, args) -> (bool, String)` com `Command::new("git").arg("-C")`.
   ssh não-interativo: se `GIT_SSH_COMMAND` e `GIT_SSH` não estão no ambiente e
   `git -C <repo> config --get core.sshCommand` não devolve valor, o helper define
@@ -140,20 +142,24 @@ tests/
   git roda com `process_group(0)` para o ssh filho morrer junto). Workers leem
   `Arc<Mutex<Receiver<Tarefa>>>`; tarefa recebida com `cancelado` verdadeiro é descartada sem
   evento. Uma thread "vigia" dá join nos workers e emite `Evento::PoolEncerrado`.
-- **`app.rs`**: `App { operacao, remote, raiz, repos, estados, logs, branches, selecao,
-  detalhe_aberto, rolagem, status, saindo, abortando, encerrado }`; `linhas() -> Vec<LinhaEnum>`
-  (grupos da FR-016); `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` onde `AcaoEnum { Enviar(Tarefa),
-  AbrirPane(PathBuf), Sair, Abortar }`; `aplicar(Evento)`; `resumo() -> String`;
-  `codigo_saida() -> i32`. Sem I/O.
+- **`app.rs`**: `App { operacao, remote, raiz, repos, estados, logs, branches, links_merge,
+  selecao, detalhe_aberto, rolagem, status, saindo, abortando, encerrado }`; `linhas() ->
+  Vec<LinhaEnum>` (grupos da FR-016); `tratar_tecla(KeyCode) -> Vec<AcaoEnum>` onde `AcaoEnum {
+  Enviar(Tarefa), AbrirPane(PathBuf), AbrirNavegador(String), Sair, Abortar }`; `aplicar(Evento)`;
+  `resumo() -> String`; `linhas_merge() -> Vec<String>`; `codigo_saida() -> i32`. Sem I/O.
 - **`acoes.rs`**: `pub fn abrir_pane_herdr(caminho: &Path) -> Result<(), String>`, que lê
   `HERDR_ENV` e delega a `fn abrir_pane_com(herdr_env: Option<&str>, caminho: &Path) ->
-  Result<(), String>` (testável sem alterar o ambiente do processo).
+  Result<(), String>` (testável sem alterar o ambiente do processo); `pub fn abrir_navegador(url:
+  &str) -> Result<(), String>` — `xdg-open` sem shell, stdio nulo, `process_group(0)`, processo
+  colhido em thread; falha ao iniciar → "xdg-open indisponível" (princípio VII).
 - **`ui.rs`**: `pub fn desenhar(frame: &mut Frame, app: &App)` — cabeçalho, lista (`List` +
   `ListState`), detalhe (`Paragraph::scroll`), barra de status e rodapé.
 - **`main.rs`**: clap → `descobrir` (erro → stderr, exit 2) → `ratatui::init()` →
   `rodar(&mut terminal, …) -> anyhow::Result<App>` (drena `try_recv`, `event::poll(100ms)`,
   `desenhar`) → `ratatui::restore()` incondicional, antes de tratar o `Result` (FR-026; o panic
-  hook do `init` cobre panics) → imprime `app.resumo()` → `std::process::exit(app.codigo_saida())`.
+  hook do `init` cobre panics) → imprime `app.resumo()` e em seguida `app.linhas_merge()` →
+  `std::process::exit(app.codigo_saida())`. `AcaoEnum::AbrirNavegador` → `abrir_navegador`
+  (status de sucesso ou erro).
 
 ## Complexity Tracking
 

@@ -106,6 +106,8 @@ pub struct Resultado {
     pub branch: Option<String>,
     /// stdout+stderr de todos os comandos da tentativa.
     pub log: String,
+    /// URL de merge/pull request anunciada pelo remote no push (só em `Enviado`).
+    pub link_merge: Option<String>,
 }
 
 fn git(
@@ -182,7 +184,34 @@ fn falha_leitura(saida: &str, branch: Option<String>, log: String) -> Resultado 
         estado: EstadoRepoEnum::Falhou(ultimo_erro(saida)),
         branch,
         log,
+        link_merge: None,
     }
+}
+
+/// Primeira URL http(s) numa linha `remote:` logo após uma linha `remote:` que cita
+/// "merge request" ou "pull request" (GitLab, GitHub, Bitbucket).
+fn extrair_link_merge(saida: &str) -> Option<String> {
+    let mut anuncio = false;
+    for linha in saida.lines() {
+        let Some(resto) = linha.strip_prefix("remote:") else {
+            anuncio = false;
+            continue;
+        };
+        let conteudo = resto.trim();
+        if conteudo.is_empty() {
+            continue;
+        }
+        if anuncio
+            && let Some(url) = conteudo
+                .split_whitespace()
+                .find(|token| token.starts_with("https://") || token.starts_with("http://"))
+        {
+            return Some(url.to_owned());
+        }
+        let minusculo = conteudo.to_lowercase();
+        anuncio = minusculo.contains("merge request") || minusculo.contains("pull request");
+    }
+    None
 }
 
 /// Executa a tarefa; se o usuário abortou, a falha resultante é reportada como aborto.
@@ -205,6 +234,7 @@ fn executar_tentativa(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado
             )),
             branch: None,
             log: String::new(),
+            link_merge: None,
         };
     }
 
@@ -239,9 +269,11 @@ fn executar_tentativa(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado
             estado: EstadoRepoEnum::Falhou(TipoErroEnum::HeadDestacado),
             branch: Some(branch),
             log,
+            link_merge: None,
         };
     }
 
+    let mut link_merge = None;
     let estado = match tarefa.operacao {
         OperacaoEnum::Pull => {
             let (sucesso, saida) = git(
@@ -316,6 +348,7 @@ fn executar_tentativa(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado
             } else if saida.contains("Everything up-to-date") {
                 EstadoRepoEnum::SemMudanca
             } else {
+                link_merge = extrair_link_merge(&saida);
                 EstadoRepoEnum::Enviado
             }
         }
@@ -325,5 +358,36 @@ fn executar_tentativa(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado
         estado,
         branch: Some(branch),
         log,
+        link_merge,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extrair_link_merge;
+
+    #[test]
+    fn test_extrai_link_merge() {
+        let casos = [
+            (
+                "remote: \nremote: To create a merge request for feat, visit:\nremote:   https://gitlab.exemplo/g/p/-/merge_requests/new?merge_request%5Bsource_branch%5D=feat\nremote: \nTo gitlab.exemplo:g/p.git\n * [new branch]      feat -> feat",
+                Some(
+                    "https://gitlab.exemplo/g/p/-/merge_requests/new?merge_request%5Bsource_branch%5D=feat",
+                ),
+            ),
+            (
+                "remote: View merge request for feat:\nremote:   https://gitlab.exemplo/g/p/-/merge_requests/12\n",
+                Some("https://gitlab.exemplo/g/p/-/merge_requests/12"),
+            ),
+            (
+                "remote: Create a pull request for 'feat' on GitHub by visiting:\nremote:      https://github.com/o/r/pull/new/feat\n",
+                Some("https://github.com/o/r/pull/new/feat"),
+            ),
+            ("remote: https://exemplo/qualquer\n", None),
+            ("To /tmp/up.git\n   abc..def  main -> main\n", None),
+        ];
+        for (saida, esperado) in casos {
+            assert_eq!(extrair_link_merge(saida).as_deref(), esperado, "{saida}");
+        }
     }
 }

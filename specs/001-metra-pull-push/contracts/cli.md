@@ -27,9 +27,11 @@ metra push [-j N] [--remote NOME] [--fonte auto|meta|varredura]
 ```text
 metra pull: X sem mudança, Y recebidos, Z falhas (repo1, repo2), W não clonados, V sem repositório
 metra push: X sem mudança, Y enviados, Z falhas, W não clonados, V sem repositório
+merge <repo>: <url>
 ```
 
-A lista entre parênteses aparece só quando Z > 0.
+A lista entre parênteses aparece só quando Z > 0. As linhas `merge` (uma por repo com link, na
+ordem da fonte, só no push) aparecem só quando algum push anunciou link de merge.
 
 **stderr** (erros de configuração, sem abrir a TUI):
 

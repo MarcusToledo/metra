@@ -4,7 +4,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
-use metra::acoes::abrir_pane_herdr;
+use metra::acoes::{abrir_navegador, abrir_pane_herdr};
 use metra::app::{AcaoEnum, App};
 use metra::executor::OperacaoEnum;
 use metra::fonte::{FonteEnum, descobrir};
@@ -92,6 +92,9 @@ fn main() {
         eprintln!("metra: {erro:#}");
     }
     println!("{}", app.resumo());
+    for linha in app.linhas_merge() {
+        println!("{linha}");
+    }
     std::process::exit(if resultado.is_err() {
         1
     } else {
@@ -128,6 +131,12 @@ fn rodar(
                         if let Err(mensagem) = abrir_pane_herdr(&caminho) {
                             app.status = Some(mensagem);
                         }
+                    }
+                    AcaoEnum::AbrirNavegador(url) => {
+                        app.status = Some(match abrir_navegador(&url) {
+                            Ok(()) => "link de merge aberto no navegador".into(),
+                            Err(mensagem) => mensagem,
+                        });
                     }
                     AcaoEnum::Sair => pool.encerrar(),
                     AcaoEnum::Abortar => pool.abortar(),
