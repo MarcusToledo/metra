@@ -1,14 +1,54 @@
+<div align="center">
+
 # metra
 
-CLI/TUI para executar `git pull` ou `git push` em paralelo nos repositórios de um workspace multi-repo. A tela acompanha o progresso e destaca falhas classificadas, com log e dicas para tratá-las.
+**`git pull` e `git push` em paralelo em todos os repositórios do seu workspace multi-repo.**
+
+Uma TUI acompanha o progresso, agrupa as falhas por tipo e mostra o log de cada repositório com a próxima ação sugerida.
+
+[![Rust](https://img.shields.io/badge/Rust-edition%202024-orange?logo=rust)](Cargo.toml)
+[![ratatui](https://img.shields.io/badge/TUI-ratatui-8A2BE2)](https://ratatui.rs)
+[![Versão](https://img.shields.io/badge/vers%C3%A3o-0.1.0-blue)](Cargo.toml)
+
+<img src="docs/assets/pull.gif" alt="metra pull atualizando oito repositórios em paralelo, com conflito, branches divergentes e alterações locais destacados" width="900">
+
+</div>
+
+## Por que metra
+
+Em um workspace com dezenas de repositórios, atualizar tudo vira um loop de `cd` e `git pull` em que um conflito no sétimo repositório se perde no meio da saída. O metra roda a mesma operação em todos ao mesmo tempo e entrega, numa única tela, o que deu certo e o que precisa da sua atenção.
+
+- **Paralelo**: `-j N` tarefas simultâneas (padrão `8`).
+- **Falhas classificadas**: conflito, branches divergentes, alterações locais, push rejeitado, rede/autenticação e outros, cada um com uma dica.
+- **Correção sem sair da tela**: repita um repositório, repita com `--no-rebase`, repita todas as falhas ou abra um pane do [herdr](docs/referencia.md#execução-segura-e-herdr) já na pasta do repositório.
+- **Links de merge/pull request**: no push, o link anunciado pelo GitLab, GitHub ou Bitbucket aparece na lista e abre com `m`.
+- **Seguro por padrão**: nunca roda Git em pasta sem `.git` próprio, não pede senha e não trava em conexão SSH morta.
+- **Rastreável**: cada execução grava um log completo, com credenciais mascaradas.
 
 ## Instalação
 
-Com Rust e Cargo instalados, na raiz do projeto:
+Requer Rust 1.88+ e Git 2.34+.
 
 ```sh
+git clone https://github.com/MarcusToledo/metra.git
+cd metra
 cargo install --path .
 ```
+
+## Início rápido
+
+Na raiz do workspace (ou em qualquer subpasta dele, se houver um `.meta`):
+
+```sh
+metra pull        # traz as mudanças do remote upstream
+metra push        # envia as branches atuais para origin
+```
+
+O metra encontra os repositórios sozinho: usa o `.meta` mais próximo ou, sem ele, as subpastas do diretório atual que têm `.git`. Veja [Descoberta dos repositórios](docs/referencia.md#descoberta-dos-repositórios).
+
+<div align="center">
+<img src="docs/assets/push.gif" alt="metra push com dois envios que anunciam link de merge e um push rejeitado" width="900">
+</div>
 
 ## Uso
 
@@ -19,106 +59,34 @@ metra push [-j N] [--remote NOME] [--fonte auto|meta|varredura]
 
 | Opção | Padrão | Descrição |
 |---|---|---|
-| `-j N`, `--jobs N` | `8` | Número de tarefas paralelas; deve ser pelo menos `1`. |
+| `-j N`, `--jobs N` | `8` | Número de tarefas paralelas. |
 | `--remote NOME` | `upstream` no pull; `origin` no push | Remote usado na operação. |
-| `--fonte` | `auto` | Fonte dos repositórios: `auto`, `meta` ou `varredura`. |
+| `--fonte` | `auto` | `.meta` se existir, senão varredura das subpastas; force com `meta` ou `varredura`. |
 
-### Descoberta dos repositórios
+O código de saída é `0` sem falhas, `1` com falhas e `2` para erro de argumentos ou descoberta. Cada execução grava um log em `$XDG_STATE_HOME/metra/` (padrão `~/.local/state/metra/`).
 
-| Fonte | Raiz | Repositórios |
-|---|---|---|
-| `auto`, com `.meta` no diretório atual ou em um ancestral | Diretório do `.meta` mais próximo | Chaves de `projects`, na ordem do arquivo. |
-| `auto`, sem `.meta` | Diretório atual | Subpastas imediatas não ocultas que contenham `.git`, ordenadas por nome. |
-| `meta` | Diretório do `.meta` mais próximo | Chaves de `projects`, na ordem do arquivo. |
-| `varredura` | Diretório atual | Subpastas imediatas não ocultas que contenham `.git`, ordenadas por nome. |
+### Atalhos
 
-A raiz não é incluída na varredura. Um repositório só é executado quando sua própria pasta contém `.git`.
-
-### Saída e códigos de saída
-
-Após o encerramento da TUI, o programa imprime no stdout um resumo, por exemplo:
-
-```text
-metra pull: X sem mudança, Y recebidos, Z falhas (repo1, repo2), W não clonados, V sem repositório
-metra push: X sem mudança, Y enviados, Z falhas (repo1, repo2), W não clonados, V sem repositório
-```
-
-A lista de repositórios com falha aparece somente quando há falhas. No push, cada repositório cujo remote anunciou um link de merge/pull request gera em seguida uma linha `merge <repo>: <url>`. Erros de configuração e descoberta são exibidos no stderr, sem abrir a TUI: `.meta` não encontrado, erro ao interpretar o JSON ou nenhum repositório encontrado.
-
-| Código | Significado |
+| Tecla | Ação |
 |---|---|
-| `0` | Operação concluída sem falhas. |
-| `1` | Uma ou mais falhas na operação. |
-| `2` | Erro de argumentos, configuração ou descoberta. |
+| `↑` / `k`, `↓` / `j` | Move a seleção |
+| `Enter` | Abre ou fecha o detalhe com o log |
+| `PgUp` / `PgDn` | Rola o log |
+| `r` | Repete o repositório selecionado |
+| `n` | Repete com `--no-rebase` (só no pull) |
+| `R` | Repete todas as falhas |
+| `p` | Abre um pane do herdr no repositório |
+| `m` | Abre o link de merge/pull request |
+| `Esc` | Fecha o detalhe; sem detalhe aberto, sai |
+| `q` | Sai aguardando as tarefas; pressionado de novo, aborta |
 
-## Tela e atalhos
-
-A lista agrupa falhas primeiro, depois resultados recebidos/enviados, tarefas em execução e pendentes, e por fim as linhas agregadas de sem mudança, não clonados e pastas sem repositório. A ordem da fonte é mantida dentro de cada grupo. No push, um repositório enviado cujo remote anunciou um link de merge/pull request aparece como `↑ <repo>  ⇗ merge`. O detalhe mostra a branch, o link de merge (quando houver), a dica correspondente e o log rolável; nas linhas agregadas, mostra os nomes. A barra de status informa mensagens e, ao sair com tarefas em execução, indica que está aguardando.
-
-| Tecla | Efeito | Restrições |
-|---|---|---|
-| `↑` / `k`, `↓` / `j` | Move a seleção. | Limitada às linhas existentes. |
-| `Enter` | Abre ou fecha o detalhe. | Em uma linha agregada, lista os nomes. |
-| `PgUp` / `PgDn` | Rola o log. | Só com detalhe aberto. |
-| `r` | Reexecuta o repositório selecionado. | Repositório clonado em estado terminal. |
-| `n` | Reexecuta com `--no-rebase`. | Somente no pull; no push, informa “indisponível no push”. |
-| `R` | Reexecuta todos os repositórios com falha. | — |
-| `p` | Abre um pane do herdr no repositório. | Requer `HERDR_ENV=1`. |
-| `m` | Abre no navegador o link de merge/pull request anunciado pelo push. | Repositório com link; usa `xdg-open`. |
-| `q` | Inicia a saída; pressionado de novo durante a saída, aborta. | Disponível a qualquer momento; a primeira vez aguarda as tarefas em execução, a segunda mata os comandos git (e o ssh) em execução, que contam como falha "abortado pelo usuário". |
-| `Esc` | Fecha o detalhe ou inicia a saída. | Sem detalhe aberto, tem o efeito de `q`. |
-
-Ações incompatíveis com a linha selecionada ou após iniciar a saída são ignoradas, com mensagem na barra de status.
-
-### Tipos de falha
-
-| Tipo | Texto curto na lista | Dica no detalhe |
-|---|---|---|
-| Merge pendente | `merge pendente` | resolva manualmente: `[p]` abre pane no repo |
-| Conflito | `conflito em <arq1>, <arq2>, <arq3> (+N)` | resolva manualmente: `[p]` abre pane no repo |
-| Branches divergentes | `branches divergentes` | use `[n]` para merge com `--no-rebase` |
-| Alterações locais | `alterações locais seriam sobrescritas` | resolva manualmente: `[p]` abre pane no repo |
-| Arquivos não rastreados | `arquivos não rastreados seriam sobrescritos` | resolva manualmente: `[p]` abre pane no repo |
-| Branch remota inexistente | `branch não existe no remote` | veja o log |
-| Remote inexistente | `remote inexistente` | veja o log |
-| Push rejeitado | `push rejeitado` | veja o log |
-| Rede ou autenticação | `falha de rede ou autenticação` | veja o log |
-| HEAD destacado | `HEAD destacado` | veja o log |
-| Desconhecida | Última linha não vazia do log | veja o log |
-
-## Execução segura e herdr
-
-O metra nunca executa Git em uma pasta sem `.git` próprio; pastas sem repositório próprio não fazem a operação subir para um repositório pai. Os comandos Git são não interativos, com `GIT_TERMINAL_PROMPT=0` e `LC_ALL=C`. Quando o usuário não configurou `GIT_SSH_COMMAND`, `GIT_SSH` nem `core.sshCommand`, o SSH é executado com `BatchMode=yes`, `ConnectTimeout=15`, `ServerAliveInterval=15` e `ServerAliveCountMax=3`: uma conexão que não responde (por exemplo, após queda da VPN) falha como rede/autenticação em vez de prender a tarefa.
-
-A integração com herdr é opcional. A tecla `p` abre um pane no repositório selecionado somente quando `HERDR_ENV=1`; fora desse ambiente ou se o comando falhar, o metra informa o problema na barra de status e continua em execução.
-
-## Logs de execução
-
-Cada execução cria um arquivo `metra-AAAAMMDD-HHMMSS-<pid>.log` em UTC, em `$XDG_STATE_HOME/metra/` quando `XDG_STATE_HOME` não está vazio e é absoluto; caso contrário, usa `~/.local/state/metra/`. São mantidas as 20 execuções mais recentes. Arquivos fora do padrão `metra-*.log` não são tocados.
-
-O log registra as versões do metra e do git, operação, remote, jobs e fonte; a descoberta (cwd, raiz e situação de cada repositório); cada comando git, com código de saída, duração e saída completa; início e fim de cada tarefa; ações na TUI; falhas do herdr ou do navegador; saída e aborto; panics com backtrace; e o resumo final com o código de saída. Cada linha contém data e hora UTC, nível (`INFO`, `AVISO` ou `ERRO`), thread, origem e mensagem. Linhas seguintes da mesma mensagem ficam recuadas.
-
-Credenciais em URLs são mascaradas: `https://usuario:token@host` aparece como `https://***@host`.
-
-Com código de saída 1 ou 2, o stderr termina com `metra: log em <caminho>`; o stdout não muda. Se não for possível criar o log, a barra de status mostra `log indisponível: <motivo>` e o metra segue normalmente.
-
-Exemplo:
-
-```text
-2026-10-13T13:24:05.120Z INFO  [main] main: metra 0.1.0 Pull remote=upstream jobs=8 fonte=Auto
-2026-10-13T13:24:05.131Z INFO  [trabalhador-0] executor: /w/bom $ git pull upstream main -> código 1 em 12 ms
-    fatal: 'upstream' does not appear to be a git repository
-```
+Descoberta, tipos de falha, atalhos, saída, execução segura e logs estão detalhados na [referência](docs/referencia.md).
 
 ## Desenvolvimento
-
-Na raiz do projeto:
 
 ```sh
 cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Os testes de integração que executam pull precisam que o Git não tenha `pull.rebase` nem `pull.ff` definidos na configuração global ou do sistema.
-
-Mais detalhes de requisitos, arquitetura e contratos estão em [`specs/001-metra-pull-push/`](specs/001-metra-pull-push/).
+Os testes de integração de pull exigem que o Git não tenha `pull.rebase` nem `pull.ff` na configuração global. As demos deste README são gravadas com [VHS](https://github.com/charmbracelet/vhs) a partir de [`docs/demo/`](docs/demo/). Requisitos e contratos ficam em [`specs/`](specs/).
