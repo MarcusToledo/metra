@@ -6,5 +6,6 @@ pub mod classifica;
 pub mod executor;
 pub mod fonte;
 pub mod pool;
+pub mod registro;
 pub mod repo;
 pub mod ui;

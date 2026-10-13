@@ -5,8 +5,10 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use crate::classifica::{self, TipoErroEnum};
+use crate::registro::{NivelEnum, registrar};
 use crate::repo::{Repo, SituacaoRepoEnum};
 
 /// SSH não interativo e com limites de rede: sem `ConnectTimeout`/`ServerAlive*`, uma conexão
@@ -38,6 +40,11 @@ impl Cancelamento {
     pub fn abortar(&self) {
         let grupos = self.grupos.lock().expect("grupos de processos íntegros");
         self.abortado.store(true, Ordering::Release);
+        registrar(
+            NivelEnum::Aviso,
+            "executor",
+            &format!("aborto: matando {} grupos de processos", grupos.len()),
+        );
         for &grupo in grupos.iter() {
             matar_grupo(grupo);
         }
@@ -123,8 +130,17 @@ fn git(
         log.push_str(arg);
     }
     log.push('\n');
+    let argumentos = args.join(" ");
 
     if cancelamento.is_abortado() {
+        registrar(
+            NivelEnum::Aviso,
+            "executor",
+            &format!(
+                "{} $ git {argumentos}: não iniciado, {MOTIVO_ABORTADO}",
+                caminho.display()
+            ),
+        );
         let texto = format!("{MOTIVO_ABORTADO}\n");
         log.push_str(&texto);
         return (false, texto);
@@ -146,6 +162,7 @@ fn git(
         comando.env("GIT_SSH_COMMAND", SSH_NAO_INTERATIVO);
     }
 
+    let inicio = Instant::now();
     let saida = comando.spawn().and_then(|filho| {
         let grupo = i32::try_from(filho.id()).expect("PID cabe em i32");
         cancelamento.registrar(grupo);
@@ -158,14 +175,55 @@ fn git(
             let mut texto = String::from_utf8_lossy(&saida.stdout).into_owned();
             texto.push_str(&String::from_utf8_lossy(&saida.stderr));
             log.push_str(&texto);
-            (saida.status.success(), texto)
+            let sucesso = saida.status.success();
+            let codigo = match saida.status.code() {
+                Some(codigo) => format!("código {codigo}"),
+                None => "encerrado por sinal".to_string(),
+            };
+            registrar(
+                if sucesso {
+                    NivelEnum::Info
+                } else {
+                    NivelEnum::Aviso
+                },
+                "executor",
+                &format!(
+                    "{} $ git {argumentos} -> {codigo} em {} ms\n{texto}",
+                    caminho.display(),
+                    inicio.elapsed().as_millis()
+                ),
+            );
+            (sucesso, texto)
         }
         Err(erro) => {
             let texto = format!("não foi possível executar git: {erro}\n");
             log.push_str(&texto);
+            registrar(
+                NivelEnum::Erro,
+                "executor",
+                &format!(
+                    "{} $ git {argumentos}: não foi possível executar git: {erro}",
+                    caminho.display()
+                ),
+            );
             (false, texto)
         }
     }
+}
+
+/// Consulta a versão instalada do git sem depender de um repositório.
+pub fn versao_git() -> Option<String> {
+    let saida = Command::new("git")
+        .arg("--version")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("LC_ALL", "C")
+        .stdin(Stdio::null())
+        .output()
+        .ok()?;
+    saida
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&saida.stdout).trim().to_string())
 }
 
 fn ultimo_erro(saida: &str) -> TipoErroEnum {
@@ -216,11 +274,35 @@ fn extrair_link_merge(saida: &str) -> Option<String> {
 
 /// Executa a tarefa; se o usuário abortou, a falha resultante é reportada como aborto.
 pub fn executar(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado {
+    registrar(
+        NivelEnum::Info,
+        "executor",
+        &format!(
+            "início {} ({}) operação={:?} remote={} sem_rebase={}",
+            tarefa.repo.nome,
+            tarefa.repo.caminho.display(),
+            tarefa.operacao,
+            tarefa.remote,
+            tarefa.sem_rebase
+        ),
+    );
     let mut resultado = executar_tentativa(tarefa, cancelamento);
     if cancelamento.is_abortado() && matches!(resultado.estado, EstadoRepoEnum::Falhou(_)) {
         resultado.estado =
             EstadoRepoEnum::Falhou(TipoErroEnum::Desconhecido(MOTIVO_ABORTADO.into()));
     }
+    registrar(
+        if matches!(resultado.estado, EstadoRepoEnum::Falhou(_)) {
+            NivelEnum::Aviso
+        } else {
+            NivelEnum::Info
+        },
+        "executor",
+        &format!(
+            "fim {}: {:?} branch={:?} link_merge={:?}",
+            tarefa.repo.nome, resultado.estado, resultado.branch, resultado.link_merge
+        ),
+    );
     resultado
 }
 
@@ -251,6 +333,11 @@ fn executar_tentativa(tarefa: &Tarefa, cancelamento: &Cancelamento) -> Resultado
             .is_ok_and(|saida| {
                 saida.status.success() && !saida.stdout.iter().all(u8::is_ascii_whitespace)
             });
+    registrar(
+        NivelEnum::Info,
+        "executor",
+        &format!("{}: ssh não interativo={ssh_batch}", tarefa.repo.nome),
+    );
 
     let mut log = String::new();
     let (sucesso, saida) = git(

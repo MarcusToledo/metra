@@ -92,6 +92,24 @@ O metra nunca executa Git em uma pasta sem `.git` próprio; pastas sem repositó
 
 A integração com herdr é opcional. A tecla `p` abre um pane no repositório selecionado somente quando `HERDR_ENV=1`; fora desse ambiente ou se o comando falhar, o metra informa o problema na barra de status e continua em execução.
 
+## Logs de execução
+
+Cada execução cria um arquivo `metra-AAAAMMDD-HHMMSS-<pid>.log` em UTC, em `$XDG_STATE_HOME/metra/` quando `XDG_STATE_HOME` não está vazio e é absoluto; caso contrário, usa `~/.local/state/metra/`. São mantidas as 20 execuções mais recentes. Arquivos fora do padrão `metra-*.log` não são tocados.
+
+O log registra as versões do metra e do git, operação, remote, jobs e fonte; a descoberta (cwd, raiz e situação de cada repositório); cada comando git, com código de saída, duração e saída completa; início e fim de cada tarefa; ações na TUI; falhas do herdr ou do navegador; saída e aborto; panics com backtrace; e o resumo final com o código de saída. Cada linha contém data e hora UTC, nível (`INFO`, `AVISO` ou `ERRO`), thread, origem e mensagem. Linhas seguintes da mesma mensagem ficam recuadas.
+
+Credenciais em URLs são mascaradas: `https://usuario:token@host` aparece como `https://***@host`.
+
+Com código de saída 1 ou 2, o stderr termina com `metra: log em <caminho>`; o stdout não muda. Se não for possível criar o log, a barra de status mostra `log indisponível: <motivo>` e o metra segue normalmente.
+
+Exemplo:
+
+```text
+2026-10-13T13:24:05.120Z INFO  [main] main: metra 0.1.0 Pull remote=upstream jobs=8 fonte=Auto
+2026-10-13T13:24:05.131Z INFO  [trabalhador-0] executor: /w/bom $ git pull upstream main -> código 1 em 12 ms
+    fatal: 'upstream' does not appear to be a git repository
+```
+
 ## Desenvolvimento
 
 Na raiz do projeto:

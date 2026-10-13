@@ -1,14 +1,15 @@
 //! Entrada da CLI e laço de eventos da TUI.
 
 use std::sync::mpsc::{self, Receiver};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use clap::{Args, Parser, Subcommand};
 use metra::acoes::{abrir_navegador, abrir_pane_herdr};
 use metra::app::{AcaoEnum, App};
-use metra::executor::OperacaoEnum;
+use metra::executor::{OperacaoEnum, versao_git};
 use metra::fonte::{FonteEnum, descobrir};
 use metra::pool::{Evento, Pool};
+use metra::registro::{self, NivelEnum, registrar};
 use metra::ui::desenhar;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -58,27 +59,80 @@ fn parse_jobs(valor: &str) -> Result<usize, String> {
 }
 
 fn main() {
+    let inicio = Instant::now();
     let (operacao, opcoes, remote_padrao) = match Cli::parse().comando {
         ComandoEnum::Pull(opcoes) => (OperacaoEnum::Pull, opcoes, "upstream"),
         ComandoEnum::Push(opcoes) => (OperacaoEnum::Push, opcoes, "origin"),
     };
-    let descoberta = std::env::current_dir()
-        .map_err(anyhow::Error::from)
-        .and_then(|cwd| descobrir(opcoes.fonte, &cwd));
-    let (raiz, repos) = match descoberta {
+    let falha_registro = match registro::diretorio_padrao() {
+        None => Some("log indisponível: HOME não definido".to_string()),
+        Some(diretorio) => registro::iniciar(&diretorio)
+            .err()
+            .map(|erro| format!("log indisponível: {erro}")),
+    };
+    registro::instalar_hook_panic();
+
+    let remote = opcoes.remote.unwrap_or_else(|| remote_padrao.into());
+    registrar(
+        NivelEnum::Info,
+        "main",
+        &format!(
+            "metra {} {operacao:?} remote={remote} jobs={} fonte={:?}",
+            env!("CARGO_PKG_VERSION"),
+            opcoes.jobs,
+            opcoes.fonte
+        ),
+    );
+    registrar(
+        NivelEnum::Info,
+        "main",
+        &format!(
+            "git: {}",
+            versao_git().unwrap_or_else(|| "indisponível".into())
+        ),
+    );
+
+    let cwd = std::env::current_dir().map_err(anyhow::Error::from);
+    let descoberta =
+        cwd.and_then(|cwd| descobrir(opcoes.fonte, &cwd).map(|(raiz, repos)| (cwd, raiz, repos)));
+    let (cwd, raiz, repos) = match descoberta {
         Ok(resultado) => resultado,
         Err(erro) => {
+            registrar(NivelEnum::Erro, "fonte", &format!("{erro:#}"));
             eprintln!("metra: {erro:#}");
+            if let Some(caminho) = registro::caminho_atual() {
+                eprintln!("metra: log em {}", caminho.display());
+            }
             std::process::exit(2);
         }
     };
-
-    let mut app = App::new(
-        operacao,
-        opcoes.remote.unwrap_or_else(|| remote_padrao.into()),
-        raiz,
-        repos,
+    registrar(
+        NivelEnum::Info,
+        "fonte",
+        &format!(
+            "cwd={} raiz={} repos={}",
+            cwd.display(),
+            raiz.display(),
+            repos.len()
+        ),
     );
+    for repo in &repos {
+        registrar(
+            NivelEnum::Info,
+            "fonte",
+            &format!(
+                "{} {} {:?}",
+                repo.nome,
+                repo.caminho.display(),
+                repo.situacao
+            ),
+        );
+    }
+
+    let mut app = App::new(operacao, remote, raiz, repos);
+    if let Some(mensagem) = falha_registro {
+        app.status = Some(mensagem);
+    }
     let (tx, rx) = mpsc::channel::<Evento>();
     let mut pool = Pool::iniciar(opcoes.jobs, tx);
     for tarefa in app.tarefas_iniciais() {
@@ -89,17 +143,37 @@ fn main() {
     let resultado = rodar(&mut terminal, &mut app, &mut pool, &rx);
     ratatui::restore();
     if let Err(erro) = &resultado {
+        registrar(NivelEnum::Erro, "main", &format!("{erro:#}"));
         eprintln!("metra: {erro:#}");
     }
-    println!("{}", app.resumo());
-    for linha in app.linhas_merge() {
-        println!("{linha}");
-    }
-    std::process::exit(if resultado.is_err() {
+    let codigo = if resultado.is_err() {
         1
     } else {
         app.codigo_saida()
-    });
+    };
+    let resumo = app.resumo();
+    registrar(
+        NivelEnum::Info,
+        "main",
+        &format!(
+            "fim código={codigo} duração={:.1}s: {resumo}",
+            inicio.elapsed().as_secs_f64()
+        ),
+    );
+    let linhas_merge = app.linhas_merge();
+    for linha in &linhas_merge {
+        registrar(NivelEnum::Info, "main", linha);
+    }
+    println!("{resumo}");
+    for linha in linhas_merge {
+        println!("{linha}");
+    }
+    if codigo != 0
+        && let Some(caminho) = registro::caminho_atual()
+    {
+        eprintln!("metra: log em {}", caminho.display());
+    }
+    std::process::exit(codigo);
 }
 
 /// Atualiza a tela até todos os trabalhadores terminarem após a saída.
@@ -125,17 +199,22 @@ fn rodar(
             && tecla.kind == KeyEventKind::Press
         {
             for acao in app.tratar_tecla(tecla.code) {
+                registrar(NivelEnum::Info, "app", &format!("ação {acao:?}"));
                 match acao {
                     AcaoEnum::Enviar(tarefa) => pool.enviar(tarefa),
                     AcaoEnum::AbrirPane(caminho) => {
                         if let Err(mensagem) = abrir_pane_herdr(&caminho) {
+                            registrar(NivelEnum::Aviso, "acoes", &mensagem);
                             app.status = Some(mensagem);
                         }
                     }
                     AcaoEnum::AbrirNavegador(url) => {
                         app.status = Some(match abrir_navegador(&url) {
                             Ok(()) => "link de merge aberto no navegador".into(),
-                            Err(mensagem) => mensagem,
+                            Err(mensagem) => {
+                                registrar(NivelEnum::Aviso, "acoes", &mensagem);
+                                mensagem
+                            }
                         });
                     }
                     AcaoEnum::Sair => pool.encerrar(),

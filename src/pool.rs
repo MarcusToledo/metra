@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
 use crate::executor::{self, Cancelamento, Resultado, Tarefa};
+use crate::registro::{NivelEnum, registrar};
 
 /// Evento emitido pelo pool.
 #[derive(Debug)]
@@ -29,37 +30,55 @@ impl Pool {
         let cancelado = Arc::new(AtomicBool::new(false));
         let cancelamento = Arc::new(Cancelamento::default());
         let trabalhadores: Vec<_> = (0..n.max(1))
-            .map(|_| {
+            .map(|i| {
                 let receptor = Arc::clone(&receptor);
                 let cancelado = Arc::clone(&cancelado);
                 let cancelamento = Arc::clone(&cancelamento);
                 let eventos = eventos.clone();
-                thread::spawn(move || {
-                    loop {
-                        let tarefa = {
-                            let receptor = receptor.lock().expect("receptor de tarefas íntegro");
-                            receptor.recv()
-                        };
-                        let Ok(tarefa) = tarefa else {
-                            break;
-                        };
-                        if cancelado.load(Ordering::Acquire) {
-                            continue;
+                thread::Builder::new()
+                    .name(format!("trabalhador-{i}"))
+                    .spawn(move || {
+                        loop {
+                            let tarefa = {
+                                let receptor =
+                                    receptor.lock().expect("receptor de tarefas íntegro");
+                                receptor.recv()
+                            };
+                            let Ok(tarefa) = tarefa else {
+                                break;
+                            };
+                            if cancelado.load(Ordering::Acquire) {
+                                registrar(
+                                    NivelEnum::Info,
+                                    "pool",
+                                    &format!(
+                                        "tarefa {} ({}) descartada: saída em andamento",
+                                        tarefa.indice, tarefa.repo.nome
+                                    ),
+                                );
+                                continue;
+                            }
+                            let _ = eventos.send(Evento::Iniciou(tarefa.indice));
+                            let resultado = executor::executar(&tarefa, &cancelamento);
+                            let _ = eventos.send(Evento::Terminou(tarefa.indice, resultado));
                         }
-                        let _ = eventos.send(Evento::Iniciou(tarefa.indice));
-                        let resultado = executor::executar(&tarefa, &cancelamento);
-                        let _ = eventos.send(Evento::Terminou(tarefa.indice, resultado));
-                    }
-                })
+                    })
+                    .expect("não foi possível criar thread do pool")
             })
             .collect();
 
-        thread::spawn(move || {
-            for trabalhador in trabalhadores {
-                let _ = trabalhador.join();
-            }
-            let _ = eventos.send(Evento::PoolEncerrado);
-        });
+        thread::Builder::new()
+            .name("pool".into())
+            .spawn(move || {
+                for trabalhador in trabalhadores {
+                    if trabalhador.join().is_err() {
+                        registrar(NivelEnum::Erro, "pool", "trabalhador terminou com panic");
+                    }
+                }
+                registrar(NivelEnum::Info, "pool", "todos os trabalhadores terminaram");
+                let _ = eventos.send(Evento::PoolEncerrado);
+            })
+            .expect("não foi possível criar thread do pool");
 
         Pool {
             sender: Some(sender),
@@ -79,12 +98,18 @@ impl Pool {
 
     /// Descarta pendentes; tarefas iniciadas terminam antes de `PoolEncerrado`.
     pub fn encerrar(&mut self) {
+        registrar(
+            NivelEnum::Info,
+            "pool",
+            "saída iniciada: tarefas pendentes descartadas",
+        );
         self.cancelado.store(true, Ordering::Release);
         self.sender.take();
     }
 
     /// Encerra e mata os comandos git em execução; as tarefas terminam como abortadas.
     pub fn abortar(&mut self) {
+        registrar(NivelEnum::Aviso, "pool", "aborto solicitado");
         self.encerrar();
         self.cancelamento.abortar();
     }
