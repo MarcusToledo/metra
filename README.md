@@ -1,6 +1,6 @@
 <div align="center">
 
-# metra
+<img src="docs/assets/banner.png" alt="metra — Push e pull em múltiplos repositórios, em paralelo." width="900">
 
 **`git pull` e `git push` em paralelo em todos os repositórios do seu workspace multi-repo.**
 
