@@ -18,13 +18,15 @@ metra pull · remote upstream · /caminho/da/raiz                 12/45 ⠙
 [detalhe, quando aberto: branch, link de merge, dica e log rolável]
 ────────────────────────────────────────────────────────────────────────
 <barra de status>
-↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · m merge · q/Esc sair
+↑↓/jk mover · Enter detalhe · PgUp/PgDn rolar log · r repetir · n sem rebase · R repetir falhas · p abrir pane · m abrir merge · q/Esc sair
 ```
 
 - Ordem dos grupos: Falhou → Recebido/Enviado → Executando → Pendente → `✓` → `○` → `⚠`; ordem
   da fonte dentro de cada grupo; linhas agregadas omitidas quando a contagem é 0.
 - Spinner (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`) no cabeçalho e nas linhas Executando enquanto houver tarefa pendente ou
   em execução.
+- Rodapé: tecla em destaque (ciano, negrito) seguida da ação; quebra em quantas linhas a largura
+  exigir, sem cortar pares tecla/ação. `n` só aparece no pull.
 
 ## Teclas
 

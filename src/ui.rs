@@ -10,23 +10,66 @@ use crate::app::{App, LinhaEnum};
 use crate::executor::{EstadoRepoEnum, OperacaoEnum};
 
 const QUADROS: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-const RODAPE: &str = "↑↓/jk navegar · Enter detalhe · PgUp/PgDn log · r repetir · n --no-rebase · R repetir falhas · p pane · m merge · q/Esc sair";
-const RODAPE_COMPACTO: &str =
-    "↑↓/jk · Enter · PgUp/PgDn · r · n --no-rebase · R · p · m · q/Esc sair";
+const SEPARADOR: &str = " · ";
+const ATALHOS: [(&str, &str); 9] = [
+    ("↑↓/jk", "mover"),
+    ("Enter", "detalhe"),
+    ("PgUp/PgDn", "rolar log"),
+    ("r", "repetir"),
+    ("n", "sem rebase"),
+    ("R", "repetir falhas"),
+    ("p", "abrir pane"),
+    ("m", "abrir merge"),
+    ("q/Esc", "sair"),
+];
+
+/// Quebra os atalhos em linhas que cabem em `largura`, sem cortar nenhum par tecla/ação.
+fn linhas_rodape(operacao: OperacaoEnum, largura: u16) -> Vec<Line<'static>> {
+    let largura = usize::from(largura);
+    let estilo_tecla = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+    let estilo_separador = Style::default().fg(Color::Gray);
+    let mut linhas = Vec::new();
+    let mut spans: Vec<Span<'static>> = Vec::new();
+    let mut ocupado = 0;
+    for (tecla, acao) in ATALHOS
+        .into_iter()
+        .filter(|(tecla, _)| operacao == OperacaoEnum::Pull || *tecla != "n")
+    {
+        let tamanho = tecla.chars().count() + 1 + acao.chars().count();
+        let separador = SEPARADOR.chars().count();
+        if !spans.is_empty() && ocupado + separador + tamanho > largura {
+            linhas.push(Line::from(std::mem::take(&mut spans)));
+            ocupado = 0;
+        }
+        if !spans.is_empty() {
+            spans.push(Span::styled(SEPARADOR, estilo_separador));
+            ocupado += separador;
+        }
+        spans.push(Span::styled(tecla, estilo_tecla));
+        spans.push(Span::raw(format!(" {acao}")));
+        ocupado += tamanho;
+    }
+    linhas.push(Line::from(spans));
+    linhas
+}
 
 /// Desenha o estado atual; `quadro` avança a cada desenho no laço principal.
 pub fn desenhar(frame: &mut Frame, app: &App, quadro: usize) {
     let area = frame.area();
+    let rodape_linhas = linhas_rodape(app.operacao, area.width);
+    let altura_rodape = u16::try_from(rodape_linhas.len()).unwrap_or(u16::MAX);
     let [cabecalho, lista, detalhe, status, rodape] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(0),
         Constraint::Length(if app.detalhe_aberto {
-            area.height.saturating_sub(3) / 2
+            area.height.saturating_sub(2 + altura_rodape) / 2
         } else {
             0
         }),
         Constraint::Length(1),
-        Constraint::Length(1),
+        Constraint::Length(altura_rodape),
     ])
     .areas(area);
 
@@ -122,16 +165,7 @@ pub fn desenhar(frame: &mut Frame, app: &App, quadro: usize) {
     }
 
     frame.render_widget(Paragraph::new(app.status.as_deref().unwrap_or("")), status);
-    if usize::from(rodape.width) >= RODAPE.chars().count() {
-        frame.render_widget(Paragraph::new(RODAPE), rodape);
-    } else if usize::from(rodape.width) >= RODAPE_COMPACTO.chars().count() {
-        frame.render_widget(Paragraph::new(RODAPE_COMPACTO), rodape);
-    } else {
-        let [atalhos, sair] =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(10)]).areas(rodape);
-        frame.render_widget(Paragraph::new(RODAPE_COMPACTO), atalhos);
-        frame.render_widget(Paragraph::new("q/Esc sair"), sair);
-    }
+    frame.render_widget(Paragraph::new(rodape_linhas), rodape);
 }
 
 #[cfg(test)]
@@ -208,6 +242,8 @@ mod tests {
         assert!(texto.contains("metra pull · remote upstream"));
         assert!(texto.contains("45/45"));
         assert!(texto.contains("q/Esc sair"));
+        assert!(texto.contains("n sem rebase"));
+        assert!(texto.contains("m abrir merge"));
     }
 
     #[test]
@@ -239,6 +275,7 @@ mod tests {
             },
         ));
         assert!(tela(&app).contains("↑ publica  ⇗ merge"));
+        assert!(!tela(&app).contains("sem rebase"));
         app.tratar_tecla(KeyCode::Enter);
         assert!(tela(&app).contains("merge: https://"));
     }
