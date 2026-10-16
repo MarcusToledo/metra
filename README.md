@@ -89,4 +89,4 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
-Os testes de integração de pull exigem que o Git não tenha `pull.rebase` nem `pull.ff` na configuração global. As demos deste README são gravadas com [VHS](https://github.com/charmbracelet/vhs) a partir de [`docs/demo/`](docs/demo/). Requisitos e contratos ficam em [`specs/`](specs/).
+Os testes de integração de pull exigem que o Git não tenha `pull.rebase` nem `pull.ff` na configuração global. As demos deste README são gravadas com [VHS](https://github.com/charmbracelet/vhs) a partir de [`docs/demo/`](docs/demo/). Requisitos, arquitetura e contratos de cada feature estão em [`specs/`](specs/); o mapa do código está em [`docs/CONTEXTO.md`](docs/CONTEXTO.md) e as instruções para agentes de IA em [`AGENTS.md`](AGENTS.md).
