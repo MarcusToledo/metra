@@ -1,5 +1,6 @@
 # Grava docs/assets/pull.gif. Na raiz do repositório:
 #   cargo build --release && vhs docs/demo/pull.tape
+# NO_COLOR herdado do ambiente desligaria as cores da TUI; o tape o remove.
 Output docs/assets/pull.gif
 
 Require git
@@ -13,13 +14,13 @@ Set TypingSpeed 60ms
 Set WindowBar Colorful
 
 Hide
-Type "export PATH=$PWD/target/release:$PATH XDG_STATE_HOME=/tmp/metra-demo-state PS1='\[\e[1;36m\]~/loja \[\e[0m\]$ ' && bash docs/demo/workspace.sh >/dev/null && cd /tmp/metra-demo/pull && clear"
+Type "unset NO_COLOR && export PATH=$PWD/target/release:$PATH XDG_STATE_HOME=/tmp/metra-demo-state PS1='\[\e[1;36m\]~/loja \[\e[0m\]$ ' && bash docs/demo/workspace.sh >/dev/null && cd /tmp/metra-demo/pull && clear"
 Enter
 Sleep 12s
 Show
 
 Sleep 500ms
-Type "metra pull -j 4"
+Type "metra pull"
 Sleep 400ms
 Enter
 Sleep 5s

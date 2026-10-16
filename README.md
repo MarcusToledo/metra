@@ -80,6 +80,12 @@ O código de saída é `0` sem falhas, `1` com falhas e `2` para erro de argumen
 | `Esc` | Fecha o detalhe; sem detalhe aberto, sai |
 | `q` | Sai aguardando as tarefas; pressionado de novo, aborta |
 
+Dentro do [herdr](https://herdr.dev), `p` abre um pane abaixo do metra já na pasta do repositório selecionado, para resolver a falha sem sair da tela:
+
+<div align="center">
+<img src="docs/assets/herdr.gif" alt="metra pull dentro do herdr: a tecla p abre um pane na pasta do frontend, onde git status e git diff mostram o conflito" width="900">
+</div>
+
 Descoberta, tipos de falha, atalhos, saída, execução segura e logs estão detalhados na [referência](docs/referencia.md).
 
 ## Desenvolvimento

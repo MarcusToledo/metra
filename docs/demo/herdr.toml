@@ -1,0 +1,19 @@
+# Configuração do herdr usada só em docs/demo/herdr.tape (via HERDR_CONFIG_PATH).
+onboarding = false
+
+[theme]
+name = "solarized"
+
+[terminal]
+# bash sem rc: o prompt vem do PS1 exportado pelo tape.
+default_shell = "/bin/bash"
+shell_mode = "non_login"
+
+[ui]
+prompt_new_tab_name = false
+
+[ui.toast]
+delivery = "off"
+
+[ui.sound]
+enabled = false
