@@ -14,17 +14,6 @@ Uma TUI acompanha o progresso, agrupa as falhas por tipo e mostra o log de cada 
 
 </div>
 
-## Por que metra
-
-Em um workspace com dezenas de repositórios, atualizar tudo vira um loop de `cd` e `git pull` em que um conflito no sétimo repositório se perde no meio da saída. O metra roda a mesma operação em todos ao mesmo tempo e entrega, numa única tela, o que deu certo e o que precisa da sua atenção.
-
-- **Paralelo**: `-j N` tarefas simultâneas (padrão `8`).
-- **Falhas classificadas**: conflito, branches divergentes, alterações locais, push rejeitado, rede/autenticação e outros, cada um com uma dica.
-- **Correção sem sair da tela**: repita um repositório, repita com `--no-rebase`, repita todas as falhas ou abra um pane do [herdr](docs/referencia.md#execução-segura-e-herdr) já na pasta do repositório.
-- **Links de merge/pull request**: no push, o link anunciado pelo GitLab, GitHub ou Bitbucket aparece na lista e abre com `m`.
-- **Seguro por padrão**: nunca roda Git em pasta sem `.git` próprio, não pede senha e não trava em conexão SSH morta.
-- **Rastreável**: cada execução grava um log completo, com credenciais mascaradas.
-
 ## Instalação
 
 Requer Rust 1.88+ e Git 2.34+.
