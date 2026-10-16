@@ -2,7 +2,7 @@
 onboarding = false
 
 [theme]
-name = "solarized"
+name = "catppuccin"
 
 [terminal]
 # bash sem rc: o prompt vem do PS1 exportado pelo tape.

@@ -7,11 +7,11 @@ Output docs/assets/herdr.gif
 Require git
 Require herdr
 Set Shell "bash"
-Set FontSize 15
+Set FontSize 16
 Set Width 1400
 Set Height 800
-Set Padding 16
-Set Theme "Builtin Solarized Dark"
+Set Padding 20
+Set Theme "Catppuccin Mocha"
 Set TypingSpeed 60ms
 Set WindowBar Colorful
 
